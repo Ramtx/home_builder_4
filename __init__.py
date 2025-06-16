@@ -38,7 +38,7 @@ from bpy.app.handlers import persistent
 bl_info = {
     "name": "Home Builder 4",
     "author": "Andrew Peel",
-    "version": (4, 0, 3),
+    "version": (4, 0, 4),
     "blender": (4, 0, 1),
     "location": "3D Viewport Sidebar",
     "description": "Library designed to help with interior design",
