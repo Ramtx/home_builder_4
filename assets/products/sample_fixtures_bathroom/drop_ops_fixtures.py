@@ -66,6 +66,9 @@ class hb_sample_fixtures_OT_drop_fixture(bpy.types.Operator):
             obj.display_type = 'TEXTURED'
 
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()

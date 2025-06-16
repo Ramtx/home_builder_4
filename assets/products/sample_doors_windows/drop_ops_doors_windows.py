@@ -166,6 +166,9 @@ class home_builder_OT_place_door_window(pc_snap.Drop_Operator):
         self.set_placed_properties(self.assembly.obj_bp)
         
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         context.view_layer.update()
         bpy.ops.object.select_all(action='DESELECT')
 

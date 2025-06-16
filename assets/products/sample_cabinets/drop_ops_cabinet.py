@@ -277,6 +277,10 @@ class hb_sample_cabinets_OT_drop_cabinet(Cabinet_Drop):
 
     def modal(self, context, event):
         context.area.tag_redraw()
+
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         #EMPTY MUST BE VISIBLE TO CALCULATE CORRECT SIZE FOR HEIGHT COLLISION
@@ -531,6 +535,10 @@ class hb_sample_cabinets_OT_drop_appliance(bpy.types.Operator):
 
     def modal(self, context, event):
         context.area.tag_redraw()
+
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         #EMPTY MUST BE VISIBLE TO CALCULATE CORRECT SIZE FOR HEIGHT COLLISION
@@ -730,6 +738,9 @@ class hb_sample_cabinets_OT_drop_cabinet_fill_wall(Cabinet_Drop):
 
     def modal(self, context, event):
         
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
@@ -917,6 +928,9 @@ class hb_sample_cabinets_OT_drop_cabinet_corner(Cabinet_Drop):
 
     def modal(self, context, event):
         
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
@@ -1166,6 +1180,9 @@ class hb_sample_cabinets_OT_drop_cabinet_insert(bpy.types.Operator):
 
     def modal(self, context, event):
         
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         #EMPTY MUST BE VISIBLE TO CALCULATE CORRECT SIZE FOR HEIGHT COLLISION
@@ -1343,6 +1360,9 @@ class hb_sample_cabinets_OT_drop_adj_shelf(bpy.types.Operator):
 
     def modal(self, context, event):
         
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
@@ -1530,6 +1550,9 @@ class hb_sample_cabinets_OT_drop_cleat(bpy.types.Operator):
         self.refresh_data(False)
 
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
@@ -1700,6 +1723,9 @@ class hb_sample_cabinets_OT_drop_back(bpy.types.Operator):
         self.refresh_data(False)
 
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
@@ -1891,6 +1917,9 @@ class hb_sample_cabinets_OT_drop_single_fixed_shelf_part(bpy.types.Operator):
         return number_of_holes * pc_unit.millimeter(32)
 
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
@@ -2391,6 +2420,9 @@ class hb_sample_cabinets_OT_place_molding(bpy.types.Operator):
             self.set_placed_properties(child) 
 
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()

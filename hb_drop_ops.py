@@ -33,6 +33,8 @@ class home_builder_OT_drop_material(bpy.types.Operator):
 
     def modal(self, context, event):
         context.window.cursor_set('PAINT_BRUSH')
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}        
         context.area.tag_redraw()
         self.mouse_x = event.mouse_x
         self.mouse_y = event.mouse_y
@@ -135,6 +137,9 @@ class home_builder_OT_drop_decoration(bpy.types.Operator):
             self.set_placed_properties(child) 
 
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
@@ -258,6 +263,9 @@ class home_builder_OT_drop_build_library(bpy.types.Operator):
             self.set_placed_properties(child) 
 
     def modal(self, context, event):
+        if event.type == "INBETWEEN_MOUSEMOVE":
+            return {'RUNNING_MODAL'}
+                
         bpy.ops.object.select_all(action='DESELECT')
 
         context.view_layer.update()
