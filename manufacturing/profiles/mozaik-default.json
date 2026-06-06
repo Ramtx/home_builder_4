@@ -1,0 +1,28 @@
+{
+  "description": "Neutral millimetre DXF, CSV, manifest, and validation package. This profile does not create a native Mozaik project file.",
+  "dxf": {
+    "layers": {
+      "annotation": "HB4_ANNOTATION",
+      "cut_out": "HB4_CUT_OUT",
+      "drill": "HB4_DRILL",
+      "face": "HB4_FACE",
+      "groove": "HB4_GROOVE",
+      "outline": "HB4_OUTLINE",
+      "pocket": "HB4_POCKET"
+    }
+  },
+  "material_mappings": [],
+  "material_name_mappings": {},
+  "output": {
+    "manifest": "manifest.json",
+    "optimizer_csv": "optimizer-parts.csv",
+    "panels_directory": "panels",
+    "profile_copy": "mozaik-profile.json",
+    "validation_report": "validation.json"
+  },
+  "profile_id": "home-builder-neutral-mozaik-v1",
+  "profile_version": 1,
+  "thickness_name_mappings": {},
+  "thickness_tolerance_mm": 0.05,
+  "unmapped_material_policy": "identity"
+}

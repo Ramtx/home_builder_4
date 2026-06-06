@@ -32,6 +32,13 @@ def extract_scene(scene=None):
     return _extract_scene(scene)
 
 
+def export_mozaik_package(project, output_directory, profile=None):
+    """Load the neutral package exporter lazily."""
+    from .mozaik import export_package
+
+    return export_package(project, output_directory, profile)
+
+
 __all__ = [
     "SCHEMA_VERSION",
     "Cabinet",
@@ -49,6 +56,7 @@ __all__ = [
     "StockDefinition",
     "Transform",
     "ValidationIssue",
+    "export_mozaik_package",
     "extract_scene",
     "stable_id",
 ]

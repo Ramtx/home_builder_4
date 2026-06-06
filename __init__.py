@@ -32,6 +32,9 @@ from .pyclone_ui import pc_text_ui_sidebar_library
 from .pyclone_ui import pc_view3d_ui_menu
 from .pyclone_ui import pc_view3d_ui_layout_view
 from .pyclone_ui import pc_lists
+from .manufacturing import operators as manufacturing_operators
+from .manufacturing import props as manufacturing_props
+from .manufacturing import ui as manufacturing_ui
 
 from bpy.app.handlers import persistent
 
@@ -128,6 +131,9 @@ def register():
     pc_lists.register()
     hb_menus.register()
     hb_drop_ops.register()
+    manufacturing_props.register()
+    manufacturing_operators.register()
+    manufacturing_ui.register()
     hb_utils.addon_version = bl_info['version']
     bpy.app.handlers.load_post.append(load_driver_functions)
     bpy.app.handlers.load_post.append(load_library)
@@ -157,10 +163,15 @@ def unregister():
     pc_lists.unregister()
     hb_menus.unregister()
     hb_drop_ops.unregister()
-    bpy.app.handlers.load_post.append(load_driver_functions)    
-    bpy.app.handlers.load_post.remove(load_library)
+    manufacturing_ui.unregister()
+    manufacturing_operators.unregister()
+    manufacturing_props.unregister()
+    if load_driver_functions in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(load_driver_functions)
+    if load_library in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(load_library)
 
 if __name__ == '__main__':
     print('register')
     load_library(None)
-    register()    
+    register()
