@@ -125,6 +125,15 @@ def extract_scene(scene: Any | None = None) -> ManufacturingProject:
     materials: dict[str, Material] = {}
     cabinets: dict[str, dict[str, Any]] = {}
     parts: list[Part] = []
+    hardware, hardware_cabinets = _extract_hardware(scene)
+
+    for cabinet_id, cabinet_bp in hardware_cabinets.items():
+        cabinets[cabinet_id] = _cabinet_record(
+            scene,
+            cabinet_bp,
+            cabinet_bp,
+            cabinet_id,
+        )
 
     part_bps = sorted(
         (obj for obj in scene.objects if _tag(obj, "IS_CUTPART_BP")),
@@ -166,7 +175,7 @@ def extract_scene(scene: Any | None = None) -> ManufacturingProject:
         cabinets=cabinet_models,
         parts=tuple(parts),
         materials=tuple(materials.values()),
-        hardware=_extract_hardware(scene),
+        hardware=hardware,
         issues=tuple(project_issues),
     )
     return project.with_validation_issues()
@@ -1021,8 +1030,11 @@ def _object_transform(obj: Any) -> Transform:
     return Transform(translation, rotation, scale)
 
 
-def _extract_hardware(scene: Any) -> tuple[HardwareItem, ...]:
+def _extract_hardware(
+    scene: Any,
+) -> tuple[tuple[HardwareItem, ...], dict[str, Any]]:
     hardware: list[HardwareItem] = []
+    cabinets: dict[str, Any] = {}
     for obj in sorted(scene.objects, key=_hierarchy_path):
         if not any(_tag(obj, tag) for tag in HARDWARE_TAGS):
             continue
@@ -1032,6 +1044,8 @@ def _extract_hardware(scene: Any) -> tuple[HardwareItem, ...]:
         quantity = _first_property(obj, ("MANUFACTURING_QUANTITY", "QUANTITY", "quantity")) or 1
         cabinet = _find_cabinet(obj)
         cabinet_id = stable_id("cabinet", _source_identity(cabinet)) if cabinet else None
+        if cabinet_id is not None:
+            cabinets[cabinet_id] = cabinet
         source_id = _source_identity(obj)
         hardware.append(
             HardwareItem(
@@ -1042,7 +1056,7 @@ def _extract_hardware(scene: Any) -> tuple[HardwareItem, ...]:
                 cabinet_id=cabinet_id,
             )
         )
-    return tuple(hardware)
+    return tuple(hardware), cabinets
 
 
 def _is_excluded(obj: Any) -> bool:

@@ -74,6 +74,101 @@ def point_in_loop(point: Point2D, loop: Sequence[Point2D]) -> bool:
     return inside
 
 
+def _point_on_segment(
+    point: Point2D,
+    start: Point2D,
+    end: Point2D,
+) -> bool:
+    cross = (
+        (point.y - start.y) * (end.x - start.x)
+        - (point.x - start.x) * (end.y - start.y)
+    )
+    return abs(cross) <= EPSILON_MM and (
+        min(start.x, end.x) - EPSILON_MM
+        <= point.x
+        <= max(start.x, end.x) + EPSILON_MM
+        and min(start.y, end.y) - EPSILON_MM
+        <= point.y
+        <= max(start.y, end.y) + EPSILON_MM
+    )
+
+
+def _point_on_loop(point: Point2D, loop: Sequence[Point2D]) -> bool:
+    return any(
+        _point_on_segment(point, loop[index - 1], current)
+        for index, current in enumerate(loop)
+    )
+
+
+def _orientation(start: Point2D, end: Point2D, point: Point2D) -> float:
+    return (
+        (end.x - start.x) * (point.y - start.y)
+        - (end.y - start.y) * (point.x - start.x)
+    )
+
+
+def _opposite_sides(first: float, second: float) -> bool:
+    return (
+        first > EPSILON_MM and second < -EPSILON_MM
+    ) or (
+        first < -EPSILON_MM and second > EPSILON_MM
+    )
+
+
+def _segments_intersect(
+    first_start: Point2D,
+    first_end: Point2D,
+    second_start: Point2D,
+    second_end: Point2D,
+) -> bool:
+    first_a = _orientation(first_start, first_end, second_start)
+    first_b = _orientation(first_start, first_end, second_end)
+    second_a = _orientation(second_start, second_end, first_start)
+    second_b = _orientation(second_start, second_end, first_end)
+
+    if _opposite_sides(first_a, first_b) and _opposite_sides(second_a, second_b):
+        return True
+    return (
+        (
+            abs(first_a) <= EPSILON_MM
+            and _point_on_segment(second_start, first_start, first_end)
+        )
+        or (
+            abs(first_b) <= EPSILON_MM
+            and _point_on_segment(second_end, first_start, first_end)
+        )
+        or (
+            abs(second_a) <= EPSILON_MM
+            and _point_on_segment(first_start, second_start, second_end)
+        )
+        or (
+            abs(second_b) <= EPSILON_MM
+            and _point_on_segment(first_end, second_start, second_end)
+        )
+    )
+
+
+def _loop_strictly_inside(
+    inner: Sequence[Point2D],
+    outer: Sequence[Point2D],
+) -> bool:
+    if any(
+        not point_in_loop(point, outer) or _point_on_loop(point, outer)
+        for point in inner
+    ):
+        return False
+    return not any(
+        _segments_intersect(
+            inner[inner_index - 1],
+            inner_point,
+            outer[outer_index - 1],
+            outer_point,
+        )
+        for inner_index, inner_point in enumerate(inner)
+        for outer_index, outer_point in enumerate(outer)
+    )
+
+
 def _collinear(previous: Point2D, current: Point2D, following: Point2D) -> bool:
     cross = (
         (current.x - previous.x) * (following.y - current.y)
@@ -131,7 +226,7 @@ class Polygon2D:
             )
         )
         for loop in cutouts:
-            if not point_in_loop(loop[0], outer):
+            if not _loop_strictly_inside(loop, outer):
                 raise ValueError("cut-out loops must lie inside the outer outline")
         object.__setattr__(self, "outer", outer)
         object.__setattr__(self, "cutouts", cutouts)

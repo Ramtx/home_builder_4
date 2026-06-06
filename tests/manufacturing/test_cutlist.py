@@ -15,7 +15,7 @@ from manufacturing.cutlist import (
     render_parts_json,
     render_validation_json,
 )
-from manufacturing.geometry import rectangle_outline
+from manufacturing.geometry import Polygon2D, rectangle_outline
 from manufacturing.model import (
     Cabinet,
     EdgeBanding,
@@ -46,6 +46,7 @@ def make_part(
     length_mm=500,
     width_mm=300,
     thickness_mm=18,
+    outline=None,
 ):
     return Part(
         id=part_id,
@@ -58,7 +59,7 @@ def make_part(
         length_mm=length_mm,
         width_mm=width_mm,
         thickness_mm=thickness_mm,
-        outline=rectangle_outline(max(length_mm, 1), max(width_mm, 1)),
+        outline=outline or rectangle_outline(max(length_mm, 1), max(width_mm, 1)),
         rotation_allowed=rotation_allowed,
         grain=grain,
         edge_banding=edge_banding or EdgeBanding(),
@@ -112,6 +113,28 @@ class CutListTests(unittest.TestCase):
         self.assertEqual(len(row.trace), 2)
         self.assertEqual(report.materials[0].quantity, 6)
         self.assertEqual(report.materials[0].finished_area_m2, 0.9)
+
+    def test_material_summary_uses_shaped_outline_and_cutout_area(self):
+        shaped_outline = Polygon2D(
+            ((0, 0), (500, 0), (500, 200), (300, 200), (300, 400), (0, 400)),
+            (((100, 100), (200, 100), (200, 200), (100, 200)),),
+        )
+        project = make_project(
+            parts=(
+                make_part(
+                    "shaped",
+                    quantity=2,
+                    length_mm=500,
+                    width_mm=400,
+                    outline=shaped_outline,
+                ),
+            )
+        )
+
+        report = build_cut_list(project)
+
+        self.assertEqual(shaped_outline.area, 150000)
+        self.assertEqual(report.materials[0].finished_area_m2, 0.3)
 
     def test_material_grain_edge_outline_and_machining_are_group_identity(self):
         hole_a = MachiningOperation(

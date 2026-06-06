@@ -133,6 +133,7 @@ class PartRow:
     finished_length_mm: float
     finished_width_mm: float
     finished_thickness_mm: float
+    finished_area_mm2: float
     material_id: str
     material_name: str
     material_export_name: str
@@ -904,6 +905,7 @@ def _part_row(
         finished_length_mm=representative.length_mm,
         finished_width_mm=representative.width_mm,
         finished_thickness_mm=representative.thickness_mm,
+        finished_area_mm2=representative.outline.area,
         material_id=representative.material_id or "",
         material_name=material.name if material else "",
         material_export_name=(material.export_name or "") if material else "",
@@ -961,9 +963,7 @@ def _material_rows(
                 quantity=sum(row.quantity for row in grouped_rows),
                 finished_area_m2=round(
                     sum(
-                        row.finished_length_mm
-                        * row.finished_width_mm
-                        * row.quantity
+                        row.finished_area_mm2 * row.quantity
                         for row in grouped_rows
                     )
                     / 1_000_000,

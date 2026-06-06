@@ -6,6 +6,7 @@ except ModuleNotFoundError:
     bpy = None
 
 from manufacturing.extractor import extract_scene
+from manufacturing.cutlist import build_cut_list
 
 
 @unittest.skipUnless(bpy is not None, "Blender bpy module is unavailable")
@@ -140,6 +141,29 @@ class BlenderExtractorTests(unittest.TestCase):
         self.assertIn(
             "extractor.invalid_explicit_outline",
             {issue.code for issue in project.issues},
+        )
+
+    def test_hardware_only_cabinet_is_retained(self):
+        hardware_cabinet = self._empty("Hardware Only Cabinet", None)
+        hardware_cabinet["IS_CABINET_BP"] = True
+        hardware_cabinet["MANUFACTURING_ID"] = "hardware-only-cabinet"
+        hinge = self._empty("Hinge", hardware_cabinet)
+        hinge["IS_HARDWARE"] = True
+        hinge["HARDWARE_NAME"] = "110 degree hinge"
+        hinge["MANUFACTURING_QUANTITY"] = 2
+
+        project = extract_scene()
+
+        cabinet = next(
+            item for item in project.cabinets if item.name == "Hardware Only Cabinet"
+        )
+        report = build_cut_list(project)
+        self.assertEqual(cabinet.part_ids, ())
+        self.assertEqual(project.hardware[0].cabinet_id, cabinet.id)
+        self.assertEqual(report.hardware[0].cabinet_names, ("Hardware Only Cabinet",))
+        self.assertNotIn(
+            "cutlist.hardware_unknown_cabinet",
+            {issue.code for issue in report.issues},
         )
 
 

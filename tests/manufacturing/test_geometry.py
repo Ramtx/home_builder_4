@@ -57,6 +57,36 @@ class GeometryTests(unittest.TestCase):
                 )
             )
 
+    def test_cutout_edge_crossing_concave_outer_loop_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "inside the outer outline"):
+            Polygon2D(
+                (
+                    (0, 0),
+                    (10, 0),
+                    (10, 10),
+                    (6, 10),
+                    (6, 4),
+                    (4, 4),
+                    (4, 10),
+                    (0, 10),
+                ),
+                (
+                    (
+                        (3, 7),
+                        (7, 7),
+                        (7, 8),
+                        (3, 8),
+                    ),
+                ),
+            )
+
+    def test_cutout_touching_outer_boundary_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "inside the outer outline"):
+            Polygon2D(
+                ((0, 0), (10, 0), (10, 10), (0, 10)),
+                (((0, 2), (4, 2), (4, 4), (0, 4)),),
+            )
+
     def test_signed_axis_normalization_preserves_orientation(self):
         normalization = AxisNormalization.from_signed_dimensions(-500, 300, -18)
 
