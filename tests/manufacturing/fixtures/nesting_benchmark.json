@@ -1,0 +1,20 @@
+{
+  "stock": {
+    "height_mm": 1220,
+    "width_mm": 2440
+  },
+  "parts": [
+    {"id": "tall-side", "length_mm": 2100, "quantity": 8, "width_mm": 560},
+    {"id": "base-side", "length_mm": 720, "quantity": 12, "width_mm": 560},
+    {"id": "upper-side", "length_mm": 720, "quantity": 12, "width_mm": 330},
+    {"id": "base-bottom", "length_mm": 564, "quantity": 8, "width_mm": 540},
+    {"id": "upper-bottom", "length_mm": 564, "quantity": 8, "width_mm": 310},
+    {"id": "shelf-wide", "length_mm": 564, "quantity": 16, "width_mm": 520},
+    {"id": "shelf-narrow", "length_mm": 564, "quantity": 12, "width_mm": 290},
+    {"id": "drawer-front", "length_mm": 596, "quantity": 12, "width_mm": 180},
+    {"id": "door", "length_mm": 716, "quantity": 16, "width_mm": 296},
+    {"id": "toe-kick", "length_mm": 600, "quantity": 8, "width_mm": 140},
+    {"id": "filler", "length_mm": 2100, "quantity": 4, "width_mm": 100},
+    {"id": "rail", "length_mm": 564, "quantity": 16, "width_mm": 100}
+  ]
+}

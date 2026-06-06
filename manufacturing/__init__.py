@@ -29,6 +29,19 @@ from .cutlist import (
     build_cut_list,
     export_cut_list,
 )
+from .nesting import (
+    MaterialSummary,
+    NestingConfig,
+    NestingOptimizer,
+    NestingPlacement,
+    NestingResult,
+    NestingSheet,
+    NestingStrategy,
+    RotationPolicy,
+    StockSpec,
+    UnplacedPart,
+    optimize,
+)
 
 
 def extract_scene(scene=None):
@@ -40,17 +53,19 @@ def extract_scene(scene=None):
 
 def register():
     """Register Blender integration without adding bpy to pure-Python imports."""
-    from . import operators, ui
+    from . import operators, props, ui
 
+    props.register()
     operators.register()
     ui.register()
 
 
 def unregister():
-    from . import operators, ui
+    from . import operators, props, ui
 
     ui.unregister()
     operators.unregister()
+    props.unregister()
 
 
 __all__ = [
@@ -64,17 +79,28 @@ __all__ = [
     "IssueSeverity",
     "MachiningOperation",
     "MachiningType",
+    "MaterialSummary",
     "ManufacturingProject",
     "Material",
+    "NestingConfig",
+    "NestingOptimizer",
+    "NestingPlacement",
+    "NestingResult",
+    "NestingSheet",
+    "NestingStrategy",
     "Part",
     "PartCategory",
+    "RotationPolicy",
+    "StockSpec",
     "StockDefinition",
     "Transform",
+    "UnplacedPart",
     "ValidationIssue",
     "ExportedCutList",
     "build_cut_list",
     "export_cut_list",
     "extract_scene",
+    "optimize",
     "register",
     "stable_id",
     "unregister",

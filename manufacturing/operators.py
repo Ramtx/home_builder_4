@@ -1,4 +1,4 @@
-"""Blender operators for manufacturing report export."""
+"""Blender operators for manufacturing exports."""
 
 from __future__ import annotations
 
@@ -8,6 +8,18 @@ import bpy
 
 from .cutlist import export_cut_list
 from .extractor import extract_scene
+from .model import GrainDirection
+from .nesting import (
+    NestingConfig,
+    NestingStrategy,
+    RotationPolicy,
+    StockSpec,
+    export_result,
+    optimize,
+)
+
+
+METRES_TO_MM = 1000.0
 
 
 class HOME_BUILDER_OT_export_manufacturing_cut_list(bpy.types.Operator):
@@ -53,6 +65,58 @@ class HOME_BUILDER_OT_export_manufacturing_cut_list(bpy.types.Operator):
         return {"FINISHED"}
 
 
-classes = (HOME_BUILDER_OT_export_manufacturing_cut_list,)
+class MANUFACTURING_OT_export_nesting(bpy.types.Operator):
+    bl_idname = "manufacturing.export_nesting"
+    bl_label = "Export Sheet Nesting"
+    bl_description = "Extract the manufacturing project and export JSON, CSV, and SVG nests"
+
+    def execute(self, context):
+        settings = context.scene.manufacturing_nesting
+        if not settings.export_directory.strip():
+            self.report({"ERROR"}, "Select an export directory")
+            return {"CANCELLED"}
+        destination = Path(bpy.path.abspath(settings.export_directory))
+
+        stock = StockSpec(
+            id="ui-stock",
+            name="Configured stock",
+            width_mm=settings.stock_width * METRES_TO_MM,
+            height_mm=settings.stock_height * METRES_TO_MM,
+            quantity=settings.stock_quantity or None,
+            is_remnant=settings.stock_is_remnant,
+            grain=GrainDirection(settings.stock_grain),
+        )
+        config = NestingConfig(
+            strategy=NestingStrategy(settings.strategy),
+            stock=(stock,),
+            kerf_mm=settings.kerf * METRES_TO_MM,
+            margin_mm=settings.margin * METRES_TO_MM,
+            spacing_mm=settings.spacing * METRES_TO_MM,
+            rotation_policy=RotationPolicy(settings.rotation_policy),
+        )
+
+        try:
+            result = optimize(extract_scene(context.scene), config)
+            export_result(result, destination)
+        except (OSError, RuntimeError, TypeError, ValueError) as error:
+            settings.last_summary = f"Export failed: {error}"
+            self.report({"ERROR"}, settings.last_summary)
+            return {"CANCELLED"}
+
+        settings.last_export_path = str(destination)
+        settings.last_summary = (
+            f"{result.placed_part_count} placed, "
+            f"{len(result.unplaced_parts)} unplaced, "
+            f"{len(result.sheets)} sheets"
+        )
+        level = {"INFO"} if result.is_valid else {"WARNING"}
+        self.report(level, settings.last_summary)
+        return {"FINISHED"}
+
+
+classes = (
+    HOME_BUILDER_OT_export_manufacturing_cut_list,
+    MANUFACTURING_OT_export_nesting,
+)
 
 register, unregister = bpy.utils.register_classes_factory(classes)
