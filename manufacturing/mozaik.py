@@ -12,7 +12,7 @@ import csv
 import hashlib
 import json
 import math
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import shutil
 from typing import Any, Iterable, Sequence
 
@@ -68,7 +68,24 @@ def _safe_relative_path(value: str) -> bool:
     if not value or "\\" in value or "\n" in value or "\r" in value:
         return False
     path = PurePosixPath(value)
-    return not path.is_absolute() and all(part not in ("", ".", "..") for part in path.parts)
+    windows_path = PureWindowsPath(value)
+    return (
+        not path.is_absolute()
+        and not windows_path.is_absolute()
+        and not windows_path.drive
+        and all(part not in ("", ".", "..") for part in path.parts)
+    )
+
+
+def _resolved_output_path(root: Path, relative_path: str) -> Path:
+    """Resolve a configured output without permitting package-root escape."""
+    resolved_root = root.resolve()
+    candidate = (resolved_root / relative_path).resolve()
+    if not candidate.is_relative_to(resolved_root) or candidate == resolved_root:
+        raise ValueError(
+            f"configured output path escapes the package directory: {relative_path!r}"
+        )
+    return candidate
 
 
 def _paths_collide(first: str, second: str) -> bool:
@@ -600,6 +617,32 @@ def _part_geometry_issues(part: Part) -> tuple[ValidationIssue, ...]:
                     (("cutout_index", index),),
                 )
             )
+    for first_index, first_cutout in enumerate(part.outline.cutouts):
+        first_segments = _segments(first_cutout)
+        for second_index in range(first_index + 1, len(part.outline.cutouts)):
+            second_cutout = part.outline.cutouts[second_index]
+            intersects = any(
+                _segments_intersect(first_segment, second_segment)
+                for first_segment in first_segments
+                for second_segment in _segments(second_cutout)
+            )
+            nested = (
+                point_in_loop(first_cutout[0], second_cutout)
+                or point_in_loop(second_cutout[0], first_cutout)
+            )
+            if intersects or nested:
+                issues.append(
+                    ValidationIssue(
+                        IssueSeverity.ERROR,
+                        "mozaik.overlapping_cutouts",
+                        "Panel cut-outs intersect or contain one another",
+                        part.id,
+                        (
+                            ("first_cutout_index", first_index),
+                            ("second_cutout_index", second_index),
+                        ),
+                    )
+                )
     return tuple(sorted(issues, key=ValidationIssue.sort_key))
 
 
@@ -1000,7 +1043,7 @@ def export_package(
 ) -> ExportResult:
     """Write a complete neutral interchange directory and validation report."""
     profile = profile or load_profile()
-    root = Path(output_directory)
+    root = Path(output_directory).resolve()
     root.mkdir(parents=True, exist_ok=True)
     issues: list[ValidationIssue] = list(project.validate())
     profile_issues = profile.validate()
@@ -1022,7 +1065,11 @@ def export_package(
         )
         return ExportResult(root, (validation_path,), final_issues, 0)
 
-    panels_directory = root / profile.output["panels_directory"]
+    output_paths = {
+        key: _resolved_output_path(root, value)
+        for key, value in profile.output.items()
+    }
+    panels_directory = output_paths["panels_directory"]
     if panels_directory.exists():
         shutil.rmtree(panels_directory)
     panels_directory.mkdir(parents=True)
@@ -1118,13 +1165,14 @@ def export_package(
     panel_groups = sorted(groups.values(), key=lambda group: group.panel_id)
     dxf_paths: list[Path] = []
     for group in panel_groups:
-        path = root / group.dxf_path
+        path = _resolved_output_path(root, group.dxf_path)
         statuses, operation_issues = _write_panel_dxf(path, group, profile)
         group.operation_statuses.extend(statuses)
         issues.extend(operation_issues)
         dxf_paths.append(path)
 
-    optimizer_path = root / profile.output["optimizer_csv"]
+    optimizer_path = output_paths["optimizer_csv"]
+    optimizer_path.parent.mkdir(parents=True, exist_ok=True)
     with optimizer_path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(
             stream,
@@ -1168,7 +1216,7 @@ def export_package(
                 }
             )
 
-    profile_path = root / profile.output["profile_copy"]
+    profile_path = output_paths["profile_copy"]
     profile_path.parent.mkdir(parents=True, exist_ok=True)
     profile_path.write_text(
         _json_text(profile.to_dict()),
@@ -1177,7 +1225,7 @@ def export_package(
     )
 
     final_issues = _deduplicate_issues(issues)
-    validation_path = root / profile.output["validation_report"]
+    validation_path = output_paths["validation_report"]
     validation_path.parent.mkdir(parents=True, exist_ok=True)
     validation_path.write_text(
         _json_text(
@@ -1206,7 +1254,7 @@ def export_package(
         _file_record(root, profile_path, "export_profile"),
         _file_record(root, validation_path, "validation_report"),
     ]
-    manifest_path = root / profile.output["manifest"]
+    manifest_path = output_paths["manifest"]
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest = {
         "package_format": PACKAGE_FORMAT,

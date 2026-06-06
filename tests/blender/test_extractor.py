@@ -142,6 +142,51 @@ class BlenderExtractorTests(unittest.TestCase):
             {issue.code for issue in project.issues},
         )
 
+    def test_scaled_panel_dimensions_and_outline_use_same_space(self):
+        part = self._part(
+            "Scaled",
+            (0.5, 0.3, 0.018),
+            ((0, 0), (0.5, 0), (0.5, 0.3), (0, 0.3)),
+        )
+        part.scale = (2.0, 0.5, 2.0)
+
+        project = extract_scene()
+        extracted = project.parts[0]
+
+        self.assertEqual(
+            (
+                extracted.length_mm,
+                extracted.width_mm,
+                extracted.thickness_mm,
+            ),
+            (1000, 150, 36),
+        )
+        self.assertEqual(extracted.outline.bounds, (0, 0, 1000, 150))
+        self.assertNotIn(
+            "extractor.outline_out_of_bounds",
+            {issue.code for issue in project.issues},
+        )
+
+    def test_ancestor_scale_is_applied_to_dimensions_and_outline(self):
+        self.cabinet.scale = (2.0, 0.5, 2.0)
+        self._part(
+            "Ancestor Scaled",
+            (0.5, 0.3, 0.018),
+            ((0, 0), (0.5, 0), (0.5, 0.3), (0, 0.3)),
+        )
+
+        extracted = extract_scene().parts[0]
+
+        self.assertEqual(
+            (
+                extracted.length_mm,
+                extracted.width_mm,
+                extracted.thickness_mm,
+            ),
+            (1000, 150, 36),
+        )
+        self.assertEqual(extracted.outline.bounds, (0, 0, 1000, 150))
+
 
 if __name__ == "__main__":
     unittest.main()

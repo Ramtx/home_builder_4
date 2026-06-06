@@ -181,7 +181,8 @@ def _extract_part(
     part_id = stable_id("part", source_id)
     issues: list[ValidationIssue] = []
 
-    signed_dimensions = _assembly_dimensions_mm(bp, depsgraph)
+    axis_scale = _assembly_axis_scale(bp, depsgraph)
+    signed_dimensions = _assembly_dimensions_mm(bp, depsgraph, axis_scale)
     if signed_dimensions is None:
         issues.append(
             _issue(
@@ -232,7 +233,7 @@ def _extract_part(
     edge_banding = _edge_banding(scene, bp, meshes, normalization)
 
     try:
-        outline = _explicit_outline(bp, normalization)
+        outline = _explicit_outline(bp, normalization, axis_scale)
     except (KeyError, TypeError, ValueError) as error:
         outline = None
         issues.append(
@@ -245,7 +246,13 @@ def _extract_part(
         )
     if outline is None:
         try:
-            outline = _mesh_outline(bp, meshes, depsgraph, normalization)
+            outline = _mesh_outline(
+                bp,
+                meshes,
+                depsgraph,
+                normalization,
+                axis_scale,
+            )
         except ValueError as error:
             outline = None
             issues.append(
@@ -273,7 +280,12 @@ def _extract_part(
             )
         )
 
-    machining, machining_issues = _machining_operations(meshes, normalization, part_id)
+    machining, machining_issues = _machining_operations(
+        meshes,
+        normalization,
+        part_id,
+        axis_scale,
+    )
     issues.extend(machining_issues)
 
     face = _normalized_face(
@@ -302,16 +314,25 @@ def _extract_part(
     return part, material, cabinet_bp, tuple(issues)
 
 
-def _assembly_dimensions_mm(bp: Any, depsgraph: Any) -> tuple[float, float, float] | None:
-    dimensions: list[float] = []
+def _assembly_axis_scale(bp: Any, depsgraph: Any) -> tuple[float, float, float]:
     evaluated_bp = bp.evaluated_get(depsgraph)
     scale = evaluated_bp.matrix_world.to_scale()
+    return tuple(abs(float(scale[axis])) for axis in range(3))
+
+
+def _assembly_dimensions_mm(
+    bp: Any,
+    depsgraph: Any,
+    axis_scale: tuple[float, float, float] | None = None,
+) -> tuple[float, float, float] | None:
+    dimensions: list[float] = []
+    scale = axis_scale or _assembly_axis_scale(bp, depsgraph)
     for axis, tag_name in enumerate(("obj_x", "obj_y", "obj_z")):
         dimension_obj = next((child for child in bp.children if _tag(child, tag_name)), None)
         if dimension_obj is None:
             return None
         evaluated = dimension_obj.evaluated_get(depsgraph)
-        dimensions.append(float(evaluated.location[axis]) * abs(float(scale[axis])) * METRES_TO_MM)
+        dimensions.append(float(evaluated.location[axis]) * scale[axis] * METRES_TO_MM)
     return tuple(dimensions)  # type: ignore[return-value]
 
 
@@ -556,19 +577,35 @@ def _edge_banding(
     return EdgeBanding(**normalized)
 
 
-def _explicit_outline(bp: Any, normalization: AxisNormalization) -> Polygon2D | None:
+def _explicit_outline(
+    bp: Any,
+    normalization: AxisNormalization,
+    axis_scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> Polygon2D | None:
     value = _first_property(bp, ("MANUFACTURING_OUTLINE", "manufacturing_outline"))
     if value is None:
         return None
     if isinstance(value, str):
         value = json.loads(value)
-    points = tuple(normalization.point(float(point[0]), float(point[1])) for point in value)
+    points = tuple(
+        normalization.point(
+            float(point[0]) * axis_scale[0],
+            float(point[1]) * axis_scale[1],
+        )
+        for point in value
+    )
 
     cutouts_value = _first_property(bp, ("MANUFACTURING_CUTOUTS", "manufacturing_cutouts")) or ()
     if isinstance(cutouts_value, str):
         cutouts_value = json.loads(cutouts_value)
     cutouts = tuple(
-        tuple(normalization.point(float(point[0]), float(point[1])) for point in loop)
+        tuple(
+            normalization.point(
+                float(point[0]) * axis_scale[0],
+                float(point[1]) * axis_scale[1],
+            )
+            for point in loop
+        )
         for loop in cutouts_value
     )
     return normalize_polygon_origin(Polygon2D(points, cutouts))
@@ -579,10 +616,19 @@ def _mesh_outline(
     meshes: Sequence[Any],
     depsgraph: Any,
     normalization: AxisNormalization,
+    axis_scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
 ) -> Polygon2D | None:
     loops: list[tuple[Point2D, ...]] = []
     for mesh in meshes:
-        loops.extend(_mesh_boundary_loops(bp, mesh, depsgraph, normalization))
+        loops.extend(
+            _mesh_boundary_loops(
+                bp,
+                mesh,
+                depsgraph,
+                normalization,
+                axis_scale,
+            )
+        )
     if not loops:
         return None
     return polygon_from_loops(loops)
@@ -593,6 +639,7 @@ def _mesh_boundary_loops(
     mesh_obj: Any,
     depsgraph: Any,
     normalization: AxisNormalization,
+    axis_scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
 ) -> tuple[tuple[Point2D, ...], ...]:
     with _single_part_modifiers(mesh_obj):
         depsgraph.update()
@@ -643,8 +690,8 @@ def _mesh_boundary_loops(
                     coordinate = transform @ mesh.vertices[vertex_index].co
                     points.append(
                         normalization.signed_point(
-                            coordinate.x * METRES_TO_MM,
-                            coordinate.y * METRES_TO_MM,
+                            coordinate.x * METRES_TO_MM * axis_scale[0],
+                            coordinate.y * METRES_TO_MM * axis_scale[1],
                         )
                     )
                 result.append(tuple(points))
@@ -705,6 +752,7 @@ def _machining_operations(
     meshes: Sequence[Any],
     normalization: AxisNormalization,
     part_id: str,
+    axis_scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
 ) -> tuple[tuple[MachiningOperation, ...], tuple[ValidationIssue, ...]]:
     operations: list[MachiningOperation] = []
     issues: list[ValidationIssue] = []
@@ -726,6 +774,7 @@ def _machining_operations(
                 normalization,
                 operation_id,
                 part_id,
+                axis_scale,
             )
             operations.extend(converted)
             issues.extend(token_issues)
@@ -741,6 +790,7 @@ def _convert_token(
     normalization: AxisNormalization,
     operation_id: str,
     part_id: str,
+    axis_scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
 ) -> tuple[tuple[MachiningOperation, ...], tuple[ValidationIssue, ...]]:
     issues: list[ValidationIssue] = []
     supported_tokens = {
@@ -775,8 +825,14 @@ def _convert_token(
         )
 
     if token_type == "Line_Bore":
-        start = normalization.point(_mm_input(inputs, "X"), _mm_input(inputs, "Y"))
-        end = normalization.point(_mm_input(inputs, "End X"), _mm_input(inputs, "End Y"))
+        start = normalization.point(
+            _mm_input(inputs, "X") * axis_scale[0],
+            _mm_input(inputs, "Y") * axis_scale[1],
+        )
+        end = normalization.point(
+            _mm_input(inputs, "End X") * axis_scale[0],
+            _mm_input(inputs, "End Y") * axis_scale[1],
+        )
         return (
             (
                 MachiningOperation(
@@ -787,17 +843,25 @@ def _convert_token(
                     y_mm=start.y,
                     end_x_mm=end.x,
                     end_y_mm=end.y,
-                    diameter_mm=abs(_mm_input(inputs, "Diameter")),
-                    depth_mm=abs(_mm_input(inputs, "Z")),
-                    spacing_mm=abs(_mm_input(inputs, "Distance Between Holes")),
+                    diameter_mm=abs(_mm_input(inputs, "Diameter"))
+                    * min(axis_scale[0], axis_scale[1]),
+                    depth_mm=abs(_mm_input(inputs, "Z")) * axis_scale[2],
+                    spacing_mm=abs(_mm_input(inputs, "Distance Between Holes"))
+                    * _line_scale(inputs, axis_scale),
                 ),
             ),
             tuple(issues),
         )
 
     if token_type in {"Cutout", "3_Sided_Notch"}:
-        start = normalization.point(_mm_input(inputs, "X"), _mm_input(inputs, "Y"))
-        end = normalization.point(_mm_input(inputs, "End X"), _mm_input(inputs, "End Y"))
+        start = normalization.point(
+            _mm_input(inputs, "X") * axis_scale[0],
+            _mm_input(inputs, "Y") * axis_scale[1],
+        )
+        end = normalization.point(
+            _mm_input(inputs, "End X") * axis_scale[0],
+            _mm_input(inputs, "End Y") * axis_scale[1],
+        )
         minimum_x, maximum_x = sorted((start.x, end.x))
         minimum_y, maximum_y = sorted((start.y, end.y))
         path = (
@@ -817,7 +881,7 @@ def _convert_token(
                     y_mm=start.y,
                     end_x_mm=end.x,
                     end_y_mm=end.y,
-                    depth_mm=abs(_mm_input(inputs, depth_name)),
+                    depth_mm=abs(_mm_input(inputs, depth_name)) * axis_scale[2],
                     path=path,
                     parameters=(("token_type", token_type),),
                 ),
@@ -826,7 +890,10 @@ def _convert_token(
         )
 
     if token_type == "Corner_Notch":
-        start = normalization.point(_mm_input(inputs, "X"), _mm_input(inputs, "Y"))
+        start = normalization.point(
+            _mm_input(inputs, "X") * axis_scale[0],
+            _mm_input(inputs, "Y") * axis_scale[1],
+        )
         return (
             (
                 MachiningOperation(
@@ -835,10 +902,14 @@ def _convert_token(
                     face=face,
                     x_mm=start.x,
                     y_mm=start.y,
-                    depth_mm=abs(_mm_input(inputs, "Route Depth")),
+                    depth_mm=abs(_mm_input(inputs, "Route Depth")) * axis_scale[2],
                     parameters=(
                         ("corner", int(inputs.get("Corner Name", 0))),
-                        ("lead_in_out_mm", abs(_mm_input(inputs, "Lead In Out"))),
+                        (
+                            "lead_in_out_mm",
+                            abs(_mm_input(inputs, "Lead In Out"))
+                            * min(axis_scale[0], axis_scale[1]),
+                        ),
                         ("token_type", token_type),
                     ),
                 ),
@@ -859,14 +930,32 @@ def _convert_token(
             )
             return (), tuple(issues)
         normalized_edge = _normalized_face(normalization, edge)
-        lead_in = abs(_mm_input(inputs, "Lead In"))
-        lead_out = abs(_mm_input(inputs, "Lead Out"))
+        dado_width_local = abs(_mm_input(inputs, "Dado Thickness"))
+        beginning_depth_local = abs(_mm_input(inputs, "Beginning Depth"))
         if normalized_edge in {Face.FRONT, Face.BACK}:
-            y = 0.0 if normalized_edge == Face.BACK else normalization.width_mm
+            lead_in = abs(_mm_input(inputs, "Lead In")) * axis_scale[0]
+            lead_out = abs(_mm_input(inputs, "Lead Out")) * axis_scale[0]
+            dado_width = dado_width_local * axis_scale[1]
+            beginning_depth = beginning_depth_local * axis_scale[1]
+            inset = beginning_depth + dado_width / 2
+            y = (
+                inset
+                if normalized_edge == Face.BACK
+                else normalization.width_mm - inset
+            )
             start = Point2D(lead_in, y)
             end = Point2D(max(lead_in, normalization.length_mm - lead_out), y)
         else:
-            x = 0.0 if normalized_edge == Face.LEFT else normalization.length_mm
+            lead_in = abs(_mm_input(inputs, "Lead In")) * axis_scale[1]
+            lead_out = abs(_mm_input(inputs, "Lead Out")) * axis_scale[1]
+            dado_width = dado_width_local * axis_scale[0]
+            beginning_depth = beginning_depth_local * axis_scale[0]
+            inset = beginning_depth + dado_width / 2
+            x = (
+                inset
+                if normalized_edge == Face.LEFT
+                else normalization.length_mm - inset
+            )
             start = Point2D(x, lead_in)
             end = Point2D(x, max(lead_in, normalization.width_mm - lead_out))
         return (
@@ -879,12 +968,17 @@ def _convert_token(
                     y_mm=start.y,
                     end_x_mm=end.x,
                     end_y_mm=end.y,
-                    depth_mm=abs(_mm_input(inputs, "Panel Penetration")),
-                    width_mm=abs(_mm_input(inputs, "Dado Thickness")),
+                    depth_mm=abs(_mm_input(inputs, "Panel Penetration"))
+                    * axis_scale[2],
+                    width_mm=dado_width,
                     parameters=(
-                        ("beginning_depth_mm", abs(_mm_input(inputs, "Beginning Depth"))),
+                        ("beginning_depth_mm", beginning_depth),
                         ("edge", normalized_edge.value),
-                        ("lock_joint_depths_mm", abs(_mm_input(inputs, "Lock Joint Depths"))),
+                        (
+                            "lock_joint_depths_mm",
+                            abs(_mm_input(inputs, "Lock Joint Depths"))
+                            * axis_scale[2],
+                        ),
                     ),
                 ),
             ),
@@ -892,12 +986,12 @@ def _convert_token(
         )
 
     if token_type == "Shelf_Holes":
-        bottom = abs(_mm_input(inputs, "Space From Bottom"))
-        top = abs(_mm_input(inputs, "Space From Top"))
+        bottom = abs(_mm_input(inputs, "Space From Bottom")) * axis_scale[1]
+        top = abs(_mm_input(inputs, "Space From Top")) * axis_scale[1]
         end_y = max(bottom, normalization.width_mm - top)
         rows = (
-            _mm_input(inputs, "First Row Dim"),
-            _mm_input(inputs, "Second Row Dim"),
+            _mm_input(inputs, "First Row Dim") * axis_scale[0],
+            _mm_input(inputs, "Second Row Dim") * axis_scale[0],
         )
         result = []
         for index, row in enumerate(rows, start=1):
@@ -912,12 +1006,18 @@ def _convert_token(
                     y_mm=start.y,
                     end_x_mm=end.x,
                     end_y_mm=end.y,
-                    diameter_mm=abs(_mm_input(inputs, "Face Bore Dia")),
-                    depth_mm=abs(_mm_input(inputs, "Face Bore Depth")),
-                    spacing_mm=abs(_mm_input(inputs, "Shelf Hole Space")),
+                    diameter_mm=abs(_mm_input(inputs, "Face Bore Dia"))
+                    * min(axis_scale[0], axis_scale[1]),
+                    depth_mm=abs(_mm_input(inputs, "Face Bore Depth"))
+                    * axis_scale[2],
+                    spacing_mm=abs(_mm_input(inputs, "Shelf Hole Space"))
+                    * axis_scale[1],
                     parameters=(
                         ("reverse_direction", bool(inputs.get("Reverse Direction", False))),
-                        ("row_spacing_mm", abs(_mm_input(inputs, "Row Spacing"))),
+                        (
+                            "row_spacing_mm",
+                            abs(_mm_input(inputs, "Row Spacing")) * axis_scale[0],
+                        ),
                     ),
                 )
             )
@@ -938,6 +1038,22 @@ def _node_inputs(modifier: Any) -> dict[str, Any]:
 def _mm_input(inputs: dict[str, Any], name: str) -> float:
     value = inputs.get(name, 0.0)
     return float(value or 0.0) * METRES_TO_MM
+
+
+def _line_scale(
+    inputs: dict[str, Any],
+    axis_scale: tuple[float, float, float],
+) -> float:
+    delta_x = _mm_input(inputs, "End X") - _mm_input(inputs, "X")
+    delta_y = _mm_input(inputs, "End Y") - _mm_input(inputs, "Y")
+    local_length = math.hypot(delta_x, delta_y)
+    if local_length <= DIMENSION_EPSILON_MM:
+        return min(axis_scale[0], axis_scale[1])
+    scaled_length = math.hypot(
+        delta_x * axis_scale[0],
+        delta_y * axis_scale[1],
+    )
+    return scaled_length / local_length
 
 
 def _parse_face(value: Any, default: Face = Face.UNKNOWN) -> Face:

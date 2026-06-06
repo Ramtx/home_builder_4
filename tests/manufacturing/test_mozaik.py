@@ -144,6 +144,52 @@ class MozaikExportTests(unittest.TestCase):
                 "WHITE-18",
             )
 
+    def test_windows_absolute_and_drive_relative_output_paths_are_rejected(self):
+        for unsafe_path in ("C:/outside/panels", "C:outside/panels"):
+            with self.subTest(unsafe_path=unsafe_path):
+                profile_data = load_profile().to_dict()
+                profile_data["output"]["panels_directory"] = unsafe_path
+                issues = MozaikProfile.from_dict(profile_data).validate()
+                self.assertIn(
+                    "mozaik.unsafe_output_filename",
+                    {issue.code for issue in issues},
+                )
+
+    def test_existing_symlink_cannot_escape_package_root(self):
+        profile = load_profile()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "package"
+            outside = Path(temporary) / "outside"
+            root.mkdir()
+            outside.mkdir()
+            (root / profile.output["panels_directory"]).symlink_to(
+                outside,
+                target_is_directory=True,
+            )
+
+            with self.assertRaisesRegex(ValueError, "escapes"):
+                export_package(
+                    make_project((make_part("part-a"),)),
+                    root,
+                    profile,
+                )
+            self.assertTrue(outside.is_dir())
+
+    def test_nested_optimizer_csv_parent_is_created(self):
+        profile_data = load_profile().to_dict()
+        profile_data["output"]["optimizer_csv"] = "csv/optimizer/parts.csv"
+        profile = MozaikProfile.from_dict(profile_data)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = export_package(
+                make_project((make_part("part-a"),)),
+                root,
+                profile,
+            )
+
+            self.assertTrue(result.ok)
+            self.assertTrue((root / "csv/optimizer/parts.csv").is_file())
+
     def test_csv_quotes_unicode_and_uses_decimal_points(self):
         part = make_part("part-a", name='Étagère, "Nord"')
         with tempfile.TemporaryDirectory() as temporary:
@@ -300,6 +346,35 @@ class MozaikExportTests(unittest.TestCase):
                 "mozaik.self_intersecting_outline",
                 {issue.code for issue in result.issues},
             )
+
+    def test_intersecting_and_nested_cutouts_are_rejected(self):
+        cutout_cases = (
+            (
+                ((50, 50), (250, 50), (250, 200), (50, 200)),
+                ((150, 100), (350, 100), (350, 250), (150, 250)),
+            ),
+            (
+                ((50, 50), (350, 50), (350, 250), (50, 250)),
+                ((100, 100), (200, 100), (200, 200), (100, 200)),
+            ),
+        )
+        for index, cutouts in enumerate(cutout_cases):
+            with self.subTest(case=index), tempfile.TemporaryDirectory() as temporary:
+                outline = Polygon2D(
+                    ((0, 0), (500.25, 0), (500.25, 300), (0, 300)),
+                    cutouts,
+                )
+                result = export_package(
+                    make_project((make_part("part-a", outline=outline),)),
+                    temporary,
+                )
+
+                self.assertFalse(result.ok)
+                self.assertEqual(result.panel_count, 0)
+                self.assertIn(
+                    "mozaik.overlapping_cutouts",
+                    {issue.code for issue in result.issues},
+                )
 
     def test_dxf_contains_all_stable_operation_layers_and_mm_units(self):
         operations = (
