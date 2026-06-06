@@ -86,6 +86,19 @@ class NestingExportTests(unittest.TestCase):
                 dumps(result),
             )
 
+    def test_export_result_removes_only_stale_sheet_diagrams(self):
+        result = self.make_result()
+        with tempfile.TemporaryDirectory() as directory:
+            stale = Path(directory) / "sheet-0002.svg"
+            unrelated = Path(directory) / "drawing.svg"
+            stale.write_text("stale", encoding="utf-8")
+            unrelated.write_text("keep", encoding="utf-8")
+
+            export_result(result, directory)
+
+            self.assertFalse(stale.exists())
+            self.assertEqual(unrelated.read_text(encoding="utf-8"), "keep")
+
 
 if __name__ == "__main__":
     unittest.main()

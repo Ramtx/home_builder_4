@@ -348,7 +348,11 @@ class NestingOptimizer:
             sheets=sheets,
             unplaced_parts=tuple(sorted(unplaced, key=UnplacedPart.sort_key)),
         )
-        issues = validate_result(preliminary)
+        combined_issues = {
+            issue.sort_key(): issue
+            for issue in (*project.validate(), *validate_result(preliminary))
+        }
+        issues = tuple(combined_issues[key] for key in sorted(combined_issues))
         return NestingResult(
             project_id=preliminary.project_id,
             strategy=preliminary.strategy,
@@ -1496,6 +1500,8 @@ def write_svg_diagrams(
 ) -> tuple[Path, ...]:
     directory = Path(destination)
     directory.mkdir(parents=True, exist_ok=True)
+    for path in directory.glob("sheet-*.svg"):
+        path.unlink()
     paths = []
     for sheet in result.sheets:
         path = directory / f"{sheet.id}.svg"

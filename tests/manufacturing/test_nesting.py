@@ -1,10 +1,13 @@
+from dataclasses import replace
 import unittest
 
 from manufacturing.geometry import Polygon2D, rectangle_outline
 from manufacturing.model import (
     GrainDirection,
+    IssueSeverity,
     Material,
     StockDefinition,
+    ValidationIssue,
 )
 from manufacturing.nesting import (
     NestingConfig,
@@ -38,6 +41,31 @@ class RectangularNestingTests(unittest.TestCase):
         self.assertEqual(len(result.sheets), 1)
         self.assertEqual(result.sheets[0].utilization, 1.0)
         self.assertEqual((result.sheets[0].placements[0].x_mm, result.sheets[0].placements[0].y_mm), (0, 0))
+
+    def test_project_validation_errors_are_preserved(self):
+        project = make_project(
+            (make_part("part-a", 100, 50),),
+            stock=(StockDefinition("stock", "Exact", 100, 50),),
+        )
+        project = replace(
+            project,
+            units="inch",
+            issues=(
+                ValidationIssue(
+                    IssueSeverity.ERROR,
+                    "extractor.invalid_outline",
+                    "Outline leaves the part bounds",
+                    "part-a",
+                ),
+            ),
+        )
+
+        result = optimize(project, self.config())
+
+        self.assertFalse(result.is_valid)
+        codes = {issue.code for issue in result.issues}
+        self.assertIn("extractor.invalid_outline", codes)
+        self.assertIn("project.invalid_units", codes)
 
     def test_multiple_sheets_and_finite_stock_exhaustion(self):
         project = make_project(
