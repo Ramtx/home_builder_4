@@ -32,6 +32,9 @@ from .pyclone_ui import pc_text_ui_sidebar_library
 from .pyclone_ui import pc_view3d_ui_menu
 from .pyclone_ui import pc_view3d_ui_layout_view
 from .pyclone_ui import pc_lists
+from .manufacturing import operators as manufacturing_operators
+from .manufacturing import props as manufacturing_props
+from .manufacturing import ui as manufacturing_ui
 
 from bpy.app.handlers import persistent
 
@@ -116,6 +119,9 @@ def register():
     pc_object.register()
     pc_prompts.register()
     pc_view3d_ui_menu.register()
+    manufacturing_props.register()
+    manufacturing_operators.register()
+    manufacturing_ui.register()
     hb_props.register()
     pyclone_props.register()
     pc_view3d_ui_sidebar_assemblies.register()
@@ -146,6 +152,9 @@ def unregister():
     pc_object.unregister()
     pc_prompts.unregister()
     pc_view3d_ui_menu.unregister() 
+    manufacturing_ui.unregister()
+    manufacturing_operators.unregister()
+    manufacturing_props.unregister()
     pc_view3d_ui_sidebar_assemblies.unregister()
     pc_view3d_ui_sidebar_object.unregister()
     pc_text_ui_sidebar_library.unregister()
@@ -163,4 +172,4 @@ def unregister():
 if __name__ == '__main__':
     print('register')
     load_library(None)
-    register()    
+    register()

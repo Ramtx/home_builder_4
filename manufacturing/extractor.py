@@ -257,6 +257,14 @@ def _extract_part(
                 )
             )
     if outline is None:
+        issues.append(
+            _issue(
+                IssueSeverity.WARNING,
+                "extractor.rectangular_outline_fallback",
+                "No evaluated panel boundary was available; a rectangular fallback was used",
+                source_id,
+            )
+        )
         outline = rectangle_outline(normalization.length_mm, normalization.width_mm)
     elif (
         outline.width > normalization.length_mm + OUTLINE_TOLERANCE_MM

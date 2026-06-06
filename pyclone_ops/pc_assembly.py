@@ -15,29 +15,10 @@ from bpy.props import (
         PointerProperty,
         FloatProperty,
         )
-import os, math, sys
+import os, math
 from .. import pyclone_utils
+from ..manufacturing.drawings import write_png_pdf
 from pc_lib import pc_types, pc_utils, pc_unit
-
-#TODO: Figure out how to get reportlab to work with MacOS
-# try:
-#     import reportlab
-# except ModuleNotFoundError:
-#     print('NOT FOUND')
-#     ROOT_PATH = os.path.dirname(__file__)
-#     PATH = os.path.join(os.path.dirname(ROOT_PATH),"python_libs")
-#     sys.path.append(PATH)
-
-# from reportlab.pdfgen import canvas
-# from reportlab.lib.pagesizes import legal,letter,inch
-# from reportlab.platypus import Image
-# from reportlab.platypus import Paragraph,Table,TableStyle
-# from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Frame, Spacer, PageTemplate, PageBreak
-# from reportlab.lib import colors
-# from reportlab.lib.pagesizes import A3, A4, landscape, portrait
-# from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-# from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
-# from reportlab.platypus.flowables import HRFlowable
 
 class Item(PropertyGroup):
     pass  
@@ -1081,38 +1062,55 @@ class pc_assembly_OT_create_pdf_of_assembly_views(bpy.types.Operator):
         context.window.scene = scene
         filepath = os.path.join(bpy.app.tempdir,scene.name + " View")
         render = bpy.context.scene.render
-        render.use_file_extension = True
-        render.filepath = filepath
-        bpy.ops.render.render(write_still=True)
-        return filepath
+        previous = (
+            render.use_file_extension,
+            render.filepath,
+            render.image_settings.file_format,
+            render.image_settings.color_mode,
+        )
+        try:
+            render.use_file_extension = True
+            render.filepath = filepath
+            render.image_settings.file_format = 'PNG'
+            render.image_settings.color_mode = 'RGB'
+            bpy.ops.render.render(write_still=True)
+            return filepath + ".png"
+        finally:
+            (
+                render.use_file_extension,
+                render.filepath,
+                render.image_settings.file_format,
+                render.image_settings.color_mode,
+            ) = previous
 
     def create_pdf(self,context,images):
-        pass
-        #TODO: Figure out how to make Reportlab work with MacOS
-        # filepath = os.path.join(bpy.app.tempdir,"2D Views.PDF")
-        # filename = "2D Views.PDF"
-        # if context.scene.pyclone.page_size == 'LETTER':
-        #     c = canvas.Canvas(filepath, pagesize=landscape(letter))
-        #     width, height = landscape(letter)
-        # else:
-        #     c = canvas.Canvas(filepath, pagesize=landscape(legal))
-        #     width, height = landscape(legal)
-
-        # for image in images:
-        #     c.drawImage(image,0,0,width=width, height=height, mask='auto',preserveAspectRatio=True)  
-        #     c.showPage()
-        # c.save()
-
-        # os.system('start "Title" /D "' + bpy.app.tempdir + '" "' + filename + '"')
+        filepath = os.path.join(bpy.app.tempdir, "2D Views.pdf")
+        page_size = context.scene.pyclone.page_size
+        page_width = 11 * 72 if page_size == 'LETTER' else 14 * 72
+        page_height = 8.5 * 72
+        write_png_pdf(
+            images,
+            filepath,
+            title="Home Builder 4 Assembly Views",
+            page_width_points=page_width,
+            page_height_points=page_height,
+        )
+        return filepath
 
     def execute(self, context):
         images = []
-        for scene in bpy.data.scenes:
-            if scene.pyclone.is_view_scene:
-                file_path = self.render_scene(context,scene)
-                images.append(file_path + ".png")
-
-        self.create_pdf(context,images)
+        original_scene = context.window.scene
+        try:
+            for scene in bpy.data.scenes:
+                if scene.pyclone.is_view_scene:
+                    images.append(self.render_scene(context,scene))
+        finally:
+            context.window.scene = original_scene
+        if not images:
+            self.report({'ERROR'}, "No assembly view scenes are available")
+            return {'CANCELLED'}
+        filepath = self.create_pdf(context,images)
+        self.report({'INFO'}, "Created " + filepath)
         return {'FINISHED'}
 
 class pc_assembly_OT_show_global_dimension_properties(Operator):
