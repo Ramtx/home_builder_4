@@ -23,6 +23,12 @@ from .model import (
     ValidationIssue,
     stable_id,
 )
+from .cutlist import (
+    CutListReport,
+    ExportedCutList,
+    build_cut_list,
+    export_cut_list,
+)
 
 
 def extract_scene(scene=None):
@@ -32,9 +38,25 @@ def extract_scene(scene=None):
     return _extract_scene(scene)
 
 
+def register():
+    """Register Blender integration without adding bpy to pure-Python imports."""
+    from . import operators, ui
+
+    operators.register()
+    ui.register()
+
+
+def unregister():
+    from . import operators, ui
+
+    ui.unregister()
+    operators.unregister()
+
+
 __all__ = [
     "SCHEMA_VERSION",
     "Cabinet",
+    "CutListReport",
     "EdgeBanding",
     "Face",
     "GrainDirection",
@@ -49,6 +71,11 @@ __all__ = [
     "StockDefinition",
     "Transform",
     "ValidationIssue",
+    "ExportedCutList",
+    "build_cut_list",
+    "export_cut_list",
     "extract_scene",
+    "register",
     "stable_id",
+    "unregister",
 ]

@@ -16,6 +16,7 @@ from . import hb_props
 from . import hb_utils
 from . import hb_menus
 from . import hb_drop_ops
+from . import manufacturing
 from .pyclone_ops import pc_assembly
 from .pyclone_ops import pc_driver
 from .pyclone_ops import pc_general
@@ -124,6 +125,7 @@ def register():
     pc_view3d_ui_layout_view.register()
     hb_ui.register()
     hb_ops.register()
+    manufacturing.register()
     wall_ops.register()
     pc_lists.register()
     hb_menus.register()
@@ -152,6 +154,7 @@ def unregister():
     pc_view3d_ui_layout_view.unregister()
     hb_props.unregister()
     hb_ui.unregister()
+    manufacturing.unregister()
     hb_ops.unregister()
     wall_ops.unregister()
     pc_lists.unregister()
@@ -163,4 +166,4 @@ def unregister():
 if __name__ == '__main__':
     print('register')
     load_library(None)
-    register()    
+    register()
