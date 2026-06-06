@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from .geometry import Point2D
+from .geometry import Point2D, point_in_loop
 from .model import Face, MachiningOperation, MachiningType, Part
 
 
@@ -77,6 +77,162 @@ def _point_in_panel(point: Point2D, part: Part) -> bool:
         and -GEOMETRY_TOLERANCE_MM
         <= point.y
         <= part.width_mm + GEOMETRY_TOLERANCE_MM
+    )
+
+
+def _point_in_material(point: Point2D, part: Part) -> bool:
+    return point_in_loop(point, part.outline.outer) and not any(
+        point_in_loop(point, cutout)
+        for cutout in part.outline.cutouts
+    )
+
+
+def _loop_edges(
+    loop: Sequence[Point2D],
+) -> Iterable[tuple[Point2D, Point2D]]:
+    for index, point in enumerate(loop):
+        yield point, loop[(index + 1) % len(loop)]
+
+
+def _panel_edges(part: Part) -> Iterable[tuple[Point2D, Point2D]]:
+    yield from _loop_edges(part.outline.outer)
+    for cutout in part.outline.cutouts:
+        yield from _loop_edges(cutout)
+
+
+def _point_segment_distance(
+    point: Point2D,
+    start: Point2D,
+    end: Point2D,
+) -> float:
+    dx = end.x - start.x
+    dy = end.y - start.y
+    length_squared = dx * dx + dy * dy
+    if length_squared <= GEOMETRY_TOLERANCE_MM**2:
+        return math.hypot(point.x - start.x, point.y - start.y)
+    ratio = (
+        (point.x - start.x) * dx + (point.y - start.y) * dy
+    ) / length_squared
+    ratio = max(0.0, min(1.0, ratio))
+    nearest_x = start.x + ratio * dx
+    nearest_y = start.y + ratio * dy
+    return math.hypot(point.x - nearest_x, point.y - nearest_y)
+
+
+def _circle_in_material(
+    centre: Point2D,
+    radius: float,
+    part: Part,
+) -> bool:
+    return _point_in_material(centre, part) and all(
+        _point_segment_distance(centre, start, end)
+        + GEOMETRY_TOLERANCE_MM
+        >= radius
+        for start, end in _panel_edges(part)
+    )
+
+
+def _cross(
+    first_x: float,
+    first_y: float,
+    second_x: float,
+    second_y: float,
+) -> float:
+    return first_x * second_y - first_y * second_x
+
+
+def _segment_boundary_parameters(
+    start: Point2D,
+    end: Point2D,
+    boundary_start: Point2D,
+    boundary_end: Point2D,
+) -> tuple[float, ...]:
+    segment_x = end.x - start.x
+    segment_y = end.y - start.y
+    boundary_x = boundary_end.x - boundary_start.x
+    boundary_y = boundary_end.y - boundary_start.y
+    offset_x = boundary_start.x - start.x
+    offset_y = boundary_start.y - start.y
+    denominator = _cross(segment_x, segment_y, boundary_x, boundary_y)
+    tolerance = GEOMETRY_TOLERANCE_MM
+    if abs(denominator) > tolerance:
+        ratio = _cross(offset_x, offset_y, boundary_x, boundary_y) / denominator
+        boundary_ratio = (
+            _cross(offset_x, offset_y, segment_x, segment_y) / denominator
+        )
+        if (
+            -tolerance <= ratio <= 1 + tolerance
+            and -tolerance <= boundary_ratio <= 1 + tolerance
+        ):
+            return (max(0.0, min(1.0, ratio)),)
+        return ()
+
+    if abs(_cross(offset_x, offset_y, segment_x, segment_y)) > tolerance:
+        return ()
+    length_squared = segment_x * segment_x + segment_y * segment_y
+    if length_squared <= tolerance**2:
+        return ()
+    ratios = tuple(
+        (
+            (point.x - start.x) * segment_x
+            + (point.y - start.y) * segment_y
+        )
+        / length_squared
+        for point in (boundary_start, boundary_end)
+    )
+    return tuple(
+        max(0.0, min(1.0, ratio))
+        for ratio in ratios
+        if -tolerance <= ratio <= 1 + tolerance
+    )
+
+
+def _segment_in_material(
+    start: Point2D,
+    end: Point2D,
+    part: Part,
+) -> bool:
+    if not _point_in_material(start, part) or not _point_in_material(end, part):
+        return False
+    ratios = {0.0, 1.0}
+    for boundary_start, boundary_end in _panel_edges(part):
+        ratios.update(
+            _segment_boundary_parameters(
+                start,
+                end,
+                boundary_start,
+                boundary_end,
+            )
+        )
+    ordered = sorted(ratios)
+    for first, second in zip(ordered, ordered[1:]):
+        if second - first <= 1e-9:
+            continue
+        ratio = (first + second) / 2
+        midpoint = Point2D(
+            start.x + (end.x - start.x) * ratio,
+            start.y + (end.y - start.y) * ratio,
+        )
+        if not _point_in_material(midpoint, part):
+            return False
+    return True
+
+
+def _path_in_material(
+    path: Sequence[Point2D],
+    part: Part,
+) -> bool:
+    return (
+        bool(path)
+        and not any(
+            point_in_loop(cutout_point, path)
+            for cutout in part.outline.cutouts
+            for cutout_point in cutout
+        )
+        and all(
+            _segment_in_material(start, end, part)
+            for start, end in _loop_edges(path)
+        )
     )
 
 
@@ -218,15 +374,10 @@ def validate_part_geometry(part: Part) -> None:
                 )
             radius = float(operation.diameter_mm) / 2
             centre = Point2D(operation.x_mm, operation.y_mm)
-            if (
-                centre.x - radius < -GEOMETRY_TOLERANCE_MM
-                or centre.y - radius < -GEOMETRY_TOLERANCE_MM
-                or centre.x + radius > part.length_mm + GEOMETRY_TOLERANCE_MM
-                or centre.y + radius > part.width_mm + GEOMETRY_TOLERANCE_MM
-            ):
+            if not _circle_in_material(centre, radius, part):
                 raise UnsupportedPanelGeometry(
                     part.id,
-                    f"hole operation {operation.id} extends outside the panel",
+                    f"hole operation {operation.id} extends outside panel material",
                 )
             if (
                 operation.operation_type == MachiningType.BLIND_HOLE
@@ -246,12 +397,7 @@ def validate_part_geometry(part: Part) -> None:
                 or operation.depth_mm <= 0
                 or not centres
                 or any(
-                    point.x - radius < -GEOMETRY_TOLERANCE_MM
-                    or point.y - radius < -GEOMETRY_TOLERANCE_MM
-                    or point.x + radius
-                    > part.length_mm + GEOMETRY_TOLERANCE_MM
-                    or point.y + radius
-                    > part.width_mm + GEOMETRY_TOLERANCE_MM
+                    not _circle_in_material(point, radius, part)
                     for point in centres
                 )
             ):
@@ -265,7 +411,7 @@ def validate_part_geometry(part: Part) -> None:
                 operation.depth_mm is None
                 or operation.depth_mm <= 0
                 or not polygon
-                or any(not _point_in_panel(point, part) for point in polygon)
+                or not _path_in_material(polygon, part)
             ):
                 raise UnsupportedPanelGeometry(
                     part.id,
@@ -280,7 +426,7 @@ def validate_part_geometry(part: Part) -> None:
                 operation.depth_mm is None
                 or operation.depth_mm <= 0
                 or len(path) < 3
-                or any(not _point_in_panel(point, part) for point in path)
+                or not _path_in_material(path, part)
             ):
                 raise UnsupportedPanelGeometry(
                     part.id,

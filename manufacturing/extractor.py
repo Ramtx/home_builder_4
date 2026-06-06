@@ -696,7 +696,12 @@ def _trace_boundary_loops(edges: Sequence[tuple[int, int]]) -> tuple[tuple[int, 
 def _single_part_modifiers(mesh_obj: Any) -> Iterator[None]:
     changed: list[tuple[Any, bool, bool]] = []
     for modifier in mesh_obj.modifiers:
-        if modifier.type not in {"ARRAY", "BEVEL"}:
+        is_machining = (
+            modifier.type == "NODES"
+            and modifier.node_group is not None
+            and "PCMT_" in modifier.node_group.name
+        )
+        if modifier.type not in {"ARRAY", "BEVEL"} and not is_machining:
             continue
         changed.append((modifier, modifier.show_viewport, modifier.show_render))
         modifier.show_viewport = False
@@ -755,7 +760,6 @@ def _convert_token(
         "Line_Bore",
         "Cutout",
         "3_Sided_Notch",
-        "Corner_Notch",
         "Dado",
         "Shelf_Holes",
     }
@@ -828,27 +832,6 @@ def _convert_token(
                     depth_mm=abs(_mm_input(inputs, depth_name)),
                     path=path,
                     parameters=(("token_type", token_type),),
-                ),
-            ),
-            tuple(issues),
-        )
-
-    if token_type == "Corner_Notch":
-        start = normalization.point(_mm_input(inputs, "X"), _mm_input(inputs, "Y"))
-        return (
-            (
-                MachiningOperation(
-                    id=operation_id,
-                    operation_type=MachiningType.CONTOUR_CUTOUT,
-                    face=face,
-                    x_mm=start.x,
-                    y_mm=start.y,
-                    depth_mm=abs(_mm_input(inputs, "Route Depth")),
-                    parameters=(
-                        ("corner", int(inputs.get("Corner Name", 0))),
-                        ("lead_in_out_mm", abs(_mm_input(inputs, "Lead In Out"))),
-                        ("token_type", token_type),
-                    ),
                 ),
             ),
             tuple(issues),

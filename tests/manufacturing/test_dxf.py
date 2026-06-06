@@ -253,6 +253,183 @@ class DxfTests(unittest.TestCase):
                 with self.assertRaises(UnsupportedPanelGeometry):
                     render_part_dxf(part)
 
+    def test_operations_in_removed_panel_material_are_rejected(self):
+        notched_outline = Polygon2D(
+            (
+                Point2D(0, 0),
+                Point2D(500, 0),
+                Point2D(500, 200),
+                Point2D(420, 200),
+                Point2D(420, 300),
+                Point2D(0, 300),
+            )
+        )
+        cutout_outline = Polygon2D(
+            (
+                Point2D(0, 0),
+                Point2D(500, 0),
+                Point2D(500, 300),
+                Point2D(0, 300),
+            ),
+            (
+                (
+                    Point2D(200, 100),
+                    Point2D(300, 100),
+                    Point2D(300, 200),
+                    Point2D(200, 200),
+                ),
+            ),
+        )
+        cases = (
+            make_part(
+                "hole-in-notch",
+                "Hole In Notch",
+                outline=notched_outline,
+                machining=(
+                    operation(
+                        "hole",
+                        MachiningType.THROUGH_HOLE,
+                        x_mm=460,
+                        y_mm=250,
+                        diameter_mm=5,
+                    ),
+                ),
+            ),
+            make_part(
+                "hole-in-cutout",
+                "Hole In Cutout",
+                outline=cutout_outline,
+                machining=(
+                    operation(
+                        "hole",
+                        MachiningType.THROUGH_HOLE,
+                        x_mm=250,
+                        y_mm=150,
+                        diameter_mm=5,
+                    ),
+                ),
+            ),
+            make_part(
+                "groove-crosses-cutout",
+                "Groove Crosses Cutout",
+                outline=cutout_outline,
+                machining=(
+                    operation(
+                        "groove",
+                        MachiningType.GROOVE,
+                        x_mm=100,
+                        y_mm=150,
+                        end_x_mm=400,
+                        end_y_mm=150,
+                        width_mm=8,
+                        depth_mm=6,
+                    ),
+                ),
+            ),
+            make_part(
+                "pocket-encloses-cutout",
+                "Pocket Encloses Cutout",
+                outline=cutout_outline,
+                machining=(
+                    operation(
+                        "pocket",
+                        MachiningType.POCKET,
+                        depth_mm=6,
+                        path=(
+                            (150, 50),
+                            (350, 50),
+                            (350, 250),
+                            (150, 250),
+                        ),
+                    ),
+                ),
+            ),
+            make_part(
+                "contour-crosses-notch",
+                "Contour Crosses Notch",
+                outline=notched_outline,
+                machining=(
+                    operation(
+                        "contour",
+                        MachiningType.CONTOUR_CUTOUT,
+                        depth_mm=18,
+                        path=(
+                            (350, 180),
+                            (470, 180),
+                            (470, 240),
+                            (350, 240),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        for part in cases:
+            with self.subTest(part=part.id):
+                with self.assertRaises(UnsupportedPanelGeometry):
+                    render_part_dxf(part)
+
+    def test_hole_radius_must_clear_cutout_boundary(self):
+        part = make_part(
+            "hole-overlaps-cutout",
+            "Hole Overlaps Cutout",
+            outline=Polygon2D(
+                (
+                    Point2D(0, 0),
+                    Point2D(500, 0),
+                    Point2D(500, 300),
+                    Point2D(0, 300),
+                ),
+                (
+                    (
+                        Point2D(200, 100),
+                        Point2D(300, 100),
+                        Point2D(300, 200),
+                        Point2D(200, 200),
+                    ),
+                ),
+            ),
+            machining=(
+                operation(
+                    "hole",
+                    MachiningType.THROUGH_HOLE,
+                    x_mm=190,
+                    y_mm=150,
+                    diameter_mm=25,
+                ),
+            ),
+        )
+
+        with self.assertRaises(UnsupportedPanelGeometry):
+            render_part_dxf(part)
+
+    def test_operation_inside_shaped_panel_material_is_supported(self):
+        part = make_part(
+            "valid-shaped-hole",
+            "Valid Shaped Hole",
+            outline=Polygon2D(
+                (
+                    Point2D(0, 0),
+                    Point2D(500, 0),
+                    Point2D(500, 200),
+                    Point2D(420, 200),
+                    Point2D(420, 300),
+                    Point2D(0, 300),
+                )
+            ),
+            machining=(
+                operation(
+                    "hole",
+                    MachiningType.THROUGH_HOLE,
+                    x_mm=100,
+                    y_mm=250,
+                    diameter_mm=5,
+                ),
+            ),
+        )
+
+        self.assertIn("THROUGH_HOLE_TOP", render_part_dxf(part))
+
 
 if __name__ == "__main__":
     unittest.main()
