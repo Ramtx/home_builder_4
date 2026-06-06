@@ -126,6 +126,22 @@ class BlenderExtractorTests(unittest.TestCase):
         project = extract_scene()
         self.assertEqual(project.parts, ())
 
+    def test_wall_parented_cabinet_parts_are_included(self):
+        wall = self._empty("Wall", None)
+        wall["IS_WALL_BP"] = True
+        self.cabinet.parent = wall
+        self._part(
+            "Wall Cabinet Side",
+            (0.7, 0.35, 0.018),
+            ((0, 0), (0.7, 0), (0.7, 0.35), (0, 0.35)),
+        )
+
+        project = extract_scene()
+
+        self.assertEqual(len(project.parts), 1)
+        self.assertEqual(project.parts[0].name, "Wall Cabinet Side")
+        self.assertEqual(project.cabinets[0].wall_name, "Wall")
+
     def test_invalid_explicit_outline_falls_back_with_issue(self):
         part = self._part(
             "Malformed Outline",

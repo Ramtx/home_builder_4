@@ -5,7 +5,7 @@ import unittest
 
 from manufacturing.model import StockDefinition
 from manufacturing.nesting import NestingConfig, optimize
-from tests.manufacturing.test_nesting import make_part, make_project
+from nesting_test_helpers import make_part, make_project
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "nesting_benchmark.json"

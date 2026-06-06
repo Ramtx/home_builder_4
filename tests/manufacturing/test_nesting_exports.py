@@ -17,7 +17,7 @@ from manufacturing.nesting import (
     optimize,
     svg_string,
 )
-from tests.manufacturing.test_nesting import make_part, make_project
+from nesting_test_helpers import make_part, make_project
 
 
 class NestingExportTests(unittest.TestCase):

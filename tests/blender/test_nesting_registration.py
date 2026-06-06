@@ -114,6 +114,15 @@ class BlenderNestingRegistrationTests(unittest.TestCase):
             )
             self.assertIn("1 placed", settings.last_summary)
 
+    def test_export_operator_rejects_blank_directory(self):
+        settings = bpy.context.scene.manufacturing_nesting
+        settings.export_directory = "   "
+
+        result = bpy.ops.manufacturing.export_nesting()
+
+        self.assertEqual(result, {"CANCELLED"})
+        self.assertEqual(settings.last_export_path, "")
+
 
 if __name__ == "__main__":
     unittest.main()

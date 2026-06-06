@@ -73,7 +73,7 @@ class MANUFACTURING_OT_export_nesting(bpy.types.Operator):
     def execute(self, context):
         settings = context.scene.manufacturing_nesting
         if not settings.export_directory.strip():
-            self.report({"ERROR"}, "Select an export directory")
+            self.report({"WARNING"}, "Select an export directory")
             return {"CANCELLED"}
         destination = Path(bpy.path.abspath(settings.export_directory))
 
