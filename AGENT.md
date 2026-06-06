@@ -7,78 +7,78 @@ and tests so you understand how the project works from end to end. Do not
 delegate exploration of this project to a subagent. You personally must read
 the relevant source and base your implementation on what you find.
 
-# Agent Task: Manufacturing Core
+# Agent Task: Manufacturing Drawings For Every Panel
 
 ## Branch And Workspace
 
-- Branch: `feature/manufacturing-core`
-- Worktree: `/home/palm/Desktop/projects/home_builder_4-worktrees/manufacturing-core`
+- Branch: `feature/panel-drawings`
+- Worktree: `/home/palm/Desktop/projects/home_builder_4-worktrees/panel-drawings`
 - Shared contract: `docs/manufacturing/ARCHITECTURE.md`
+- Dependency: completed `feature/manufacturing-core`
 
-Commit all completed work to this branch. Do not modify another worktree.
+Rebase onto the approved manufacturing-core commit first. Drawing code must
+consume the canonical model and remain testable without Blender.
 
 ## Objective
 
-Build the canonical, versioned manufacturing model and the Blender extractor
-that every downstream manufacturing feature will use. This is the critical
-dependency for cut lists, nesting, panel drawings, and Mozaik interchange.
+Generate a complete, indexed human-readable manufacturing booklet and
+machine-readable vector files for every supported unique panel.
 
 ## Required Research
 
-Before implementing, clone at least three relevant public cabinet,
-woodworking, CAD, or manufacturing projects into:
+Clone at least three public technical-drawing, woodworking, CAD, PDF, SVG,
+or DXF projects into:
 
 ```text
-/tmp/hb4-research/manufacturing-core/
+/tmp/hb4-research/panel-drawings/
 ```
 
-Inspect their source code for part identification, evaluated dimensions,
-materials, edge banding, array quantities, shaped panel outlines, and
-machining operations. Do not rely only on README files.
+Inspect source implementations for panel flattening, annotations, dimension
+placement, machining symbols, PDF assembly, SVG, and DXF writing. Record
+URLs, exact commits, licences, useful techniques, limitations, and selected
+approach in `docs/manufacturing/DRAWINGS_RESEARCH.md`.
 
-Create `docs/manufacturing/CORE_RESEARCH.md` recording repository URLs,
-exact commits, licences, useful techniques, limitations, and the selected
-approach. Public repositories without a compatible licence may be inspected
-but their code must be independently reimplemented. Copy code only from
-GPL-compatible sources and preserve attribution.
+Public repositories may be inspected regardless of licence. Copy code only
+from GPL-compatible sources with attribution.
 
 ## Implementation
 
-Create the pure-Python domain modules described in the shared architecture:
+Implement:
 
-- `manufacturing/model.py`
-- `manufacturing/geometry.py`
-- `manufacturing/serialization.py`
+- `manufacturing/dxf.py` for deterministic ASCII DXF
+- `manufacturing/drawings.py` for SVG panels and an indexed PDF booklet
 
-Create `manufacturing/extractor.py` for Blender integration. It must:
+Each panel drawing must include:
 
-- Discover evaluated `IS_CUTPART_BP` assemblies.
-- Normalize dimensions to positive millimetres.
-- Resolve stable part and cabinet IDs.
-- Expand repeated/arrayed parts into quantities.
-- Resolve names, categories, materials, thickness, grain, and edge data.
-- Extract rectangular and shaped panel outlines.
-- Translate supported machine tokens into canonical machining operations.
-- Exclude suppressed, decorative, wall, appliance, and dimension objects.
-- Return structured validation issues for missing or unsupported metadata.
+- stable part ID, cabinet/name, quantity, material, thickness, and face
+- scaled outer outline and cut-outs
+- overall dimensions
+- grain arrow and four edge-band labels
+- holes, line bores, grooves, pockets, and contour operations
+- legend, page number, and validation notes
 
-Register only the minimum package hooks needed by downstream modules. Do not
-implement cut-list, nesting, drawing, or Mozaik-specific output.
+Generate one SVG and one DXF per unique supported panel. DXF geometry must
+use millimetres, closed outlines, stable layers, and unambiguous operation
+layers. Unsupported flattening must produce an error rather than a plausible
+but wrong drawing.
+
+Replace the currently unfinished PDF behavior with a Blender-compatible,
+documented implementation. Avoid mandatory external services.
+
+Add Blender operators and a Manufacturing UI section for exporting the
+drawing package.
 
 ## Tests And Acceptance
 
-Add pure-Python tests under `tests/manufacturing/` for:
+Test rectangular, drilled, grooved, pocketed, notched, curved, mirrored,
+grain-sensitive, and duplicate panels. Verify:
 
-- model validation and deterministic ordering
-- geometry normalization
-- JSON round trips and schema-version rejection
-- stable IDs
+- SVG XML structure and dimensions
+- required DXF sections, units, layers, and closed contours
+- drawing/cut-part dimensions agree
+- deterministic filenames and ordering
+- PDF page count, index, and labels
+- unsupported geometry is rejected
 
-Add Blender-headless tests under `tests/blender/` for representative
-rectangular, repeated, and shaped parts. Tests must skip clearly when
-Blender is unavailable and run under Blender 4.x when supplied.
-
-Acceptance requires deterministic JSON, millimetre-only internal values,
-positive normalized dimensions, preserved machining-face orientation,
-expanded quantities, and useful validation failures. Run all available
-tests and commit the implementation plus research notes.
+Commit implementation, tests, generated small golden fixtures, and research
+notes. Do not commit large rendered artifacts.
