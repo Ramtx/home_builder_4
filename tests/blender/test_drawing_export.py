@@ -70,6 +70,7 @@ class BlenderDrawingExportTests(unittest.TestCase):
         self.assertEqual(
             files,
             [
+                ".home_builder_drawings.json",
                 f"dxf/operator-panel__{panel_id}.dxf",
                 "manufacturing_booklet.pdf",
                 f"svg/operator-panel__{panel_id}.svg",

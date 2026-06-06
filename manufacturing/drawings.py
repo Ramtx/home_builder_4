@@ -8,6 +8,7 @@ ReportLab, Cairo, a browser, or an external conversion service.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import math
 from pathlib import Path
 import re
@@ -42,6 +43,8 @@ PAGE_WIDTH_MM = 297.0
 PAGE_HEIGHT_MM = 210.0
 PDF_POINTS_PER_MM = 72.0 / 25.4
 INDEX_ROWS_PER_PAGE = 20
+PACKAGE_MANIFEST_NAME = ".home_builder_drawings.json"
+PACKAGE_MANIFEST_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -964,8 +967,14 @@ def render_pdf(pages: Sequence[VectorPage], title: str) -> bytes:
         f"<< /Type /Pages /Count {len(pages)} /Kids "
         f"[{' '.join(f'{page_id} 0 R' for page_id in page_ids)}] >>"
     ).encode("ascii")
-    objects[3] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-    objects[4] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"
+    objects[3] = (
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
+        b"/Encoding /WinAnsiEncoding >>"
+    )
+    objects[4] = (
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold "
+        b"/Encoding /WinAnsiEncoding >>"
+    )
     media_width = PAGE_WIDTH_MM * PDF_POINTS_PER_MM
     media_height = PAGE_HEIGHT_MM * PDF_POINTS_PER_MM
     for page_id, content_id, page in zip(page_ids, content_ids, pages):
@@ -1182,6 +1191,69 @@ def write_png_pdf(
     return path
 
 
+def _owned_package_paths(root: Path) -> tuple[Path, ...]:
+    manifest_path = root / PACKAGE_MANIFEST_NAME
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return ()
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("version") != PACKAGE_MANIFEST_VERSION
+        or not isinstance(manifest.get("files"), list)
+    ):
+        return ()
+
+    paths: list[Path] = []
+    resolved_root = root.resolve()
+    for value in manifest["files"]:
+        if not isinstance(value, str):
+            continue
+        relative = Path(value)
+        if relative.is_absolute() or ".." in relative.parts:
+            continue
+        is_booklet = relative == Path("manufacturing_booklet.pdf")
+        is_svg = (
+            len(relative.parts) == 2
+            and relative.parts[0] == "svg"
+            and relative.suffix.lower() == ".svg"
+        )
+        is_dxf = (
+            len(relative.parts) == 2
+            and relative.parts[0] == "dxf"
+            and relative.suffix.lower() == ".dxf"
+        )
+        if not (is_booklet or is_svg or is_dxf):
+            continue
+        path = root / relative
+        try:
+            path.resolve().relative_to(resolved_root)
+        except ValueError:
+            continue
+        paths.append(path)
+    return tuple(paths)
+
+
+def _write_package_manifest(root: Path, paths: Sequence[Path]) -> Path:
+    manifest_path = root / PACKAGE_MANIFEST_NAME
+    relative_paths = sorted(
+        path.relative_to(root).as_posix()
+        for path in paths
+    )
+    payload = json.dumps(
+        {
+            "files": relative_paths,
+            "version": PACKAGE_MANIFEST_VERSION,
+        },
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+    temporary_path = manifest_path.with_suffix(".tmp")
+    temporary_path.write_text(payload, encoding="utf-8", newline="\n")
+    temporary_path.replace(manifest_path)
+    return manifest_path
+
+
 def export_drawing_package(
     project: ManufacturingProject,
     output_directory: str | Path,
@@ -1212,10 +1284,9 @@ def export_drawing_package(
     dxf_directory = root / "dxf"
     svg_directory.mkdir(parents=True, exist_ok=True)
     dxf_directory.mkdir(parents=True, exist_ok=True)
-    for path in svg_directory.glob("*.svg"):
-        path.unlink()
-    for path in dxf_directory.glob("*.dxf"):
-        path.unlink()
+    for path in _owned_package_paths(root):
+        if path.is_file():
+            path.unlink()
 
     svg_paths: list[Path] = []
     dxf_paths: list[Path] = []
@@ -1240,6 +1311,7 @@ def export_drawing_package(
         root / "manufacturing_booklet.pdf",
         title=f"{project.name} Manufacturing Drawings",
     )
+    _write_package_manifest(root, (*svg_paths, *dxf_paths, booklet_path))
     return DrawingPackage(
         output_directory=root,
         booklet_path=booklet_path,
@@ -1253,6 +1325,7 @@ def export_drawing_package(
 __all__ = [
     "DrawingPackage",
     "INDEX_ROWS_PER_PAGE",
+    "PACKAGE_MANIFEST_NAME",
     "PAGE_HEIGHT_MM",
     "PAGE_WIDTH_MM",
     "PanelDrawing",

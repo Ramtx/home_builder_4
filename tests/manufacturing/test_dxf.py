@@ -15,7 +15,7 @@ from manufacturing.model import (
     ValidationIssue,
 )
 
-from .drawing_fixtures import make_part, operation
+from drawing_fixtures import make_part, operation
 
 
 def _tags(dxf: str) -> list[tuple[str, str]]:

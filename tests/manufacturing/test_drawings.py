@@ -10,16 +10,19 @@ from xml.etree import ElementTree as ET
 import zlib
 
 from manufacturing.drawings import (
+    PACKAGE_MANIFEST_NAME,
     SVG_NAMESPACE,
     UnsupportedPanelGeometry,
+    VectorPage,
     collect_unique_panels,
     export_drawing_package,
     render_panel_svg,
+    render_pdf,
     write_png_pdf,
 )
 from manufacturing.model import IssueSeverity, ValidationIssue
 
-from .drawing_fixtures import make_part, make_project, required_panel_parts
+from drawing_fixtures import make_part, make_project, required_panel_parts
 
 
 GOLDEN_DIRECTORY = Path(__file__).with_name("golden")
@@ -204,6 +207,48 @@ class DrawingTests(unittest.TestCase):
             with self.assertRaises(UnsupportedPanelGeometry):
                 export_drawing_package(make_project((unsupported,)), destination)
             self.assertFalse(destination.exists())
+
+    def test_reexport_only_removes_files_owned_by_previous_package(self):
+        first_project = make_project(required_panel_parts()[:3])
+        second_project = make_project(required_panel_parts()[:1])
+        with tempfile.TemporaryDirectory() as root:
+            root_path = Path(root)
+            first = export_drawing_package(first_project, root_path)
+            stale_svg = first.svg_paths[-1]
+            stale_dxf = first.dxf_paths[-1]
+            unrelated_svg = root_path / "svg" / "customer-detail.svg"
+            unrelated_dxf = root_path / "dxf" / "supplier-template.dxf"
+            unrelated_svg.write_text("customer", encoding="utf-8")
+            unrelated_dxf.write_text("supplier", encoding="ascii")
+
+            export_drawing_package(second_project, root_path)
+
+            self.assertFalse(stale_svg.exists())
+            self.assertFalse(stale_dxf.exists())
+            self.assertEqual(
+                unrelated_svg.read_text(encoding="utf-8"),
+                "customer",
+            )
+            self.assertEqual(
+                unrelated_dxf.read_text(encoding="ascii"),
+                "supplier",
+            )
+            manifest = (root_path / PACKAGE_MANIFEST_NAME).read_text(
+                encoding="utf-8"
+            )
+            self.assertNotIn("customer-detail.svg", manifest)
+            self.assertNotIn("supplier-template.dxf", manifest)
+
+    def test_pdf_declares_winansi_for_cp1252_text(self):
+        page = VectorPage("Accented")
+        page.text(10, 10, "Café – façade")
+
+        pdf = render_pdf((page,), "Café Drawings")
+
+        self.assertEqual(pdf.count(b"/Encoding /WinAnsiEncoding"), 2)
+        self.assertIn(rb"Caf\351", pdf)
+        self.assertIn(rb"\226", pdf)
+        self.assertIn(rb"fa\347ade", pdf)
 
     def test_small_svg_and_dxf_golden_files(self):
         panel = collect_unique_panels(
