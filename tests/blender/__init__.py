@@ -1,0 +1,1 @@
+"""Blender-headless manufacturing tests."""
