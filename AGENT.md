@@ -7,78 +7,82 @@ and tests so you understand how the project works from end to end. Do not
 delegate exploration of this project to a subagent. You personally must read
 the relevant source and base your implementation on what you find.
 
-# Agent Task: Manufacturing Core
+# Agent Task: Direct Mozaik Interchange Export
 
 ## Branch And Workspace
 
-- Branch: `feature/manufacturing-core`
-- Worktree: `/home/palm/Desktop/projects/home_builder_4-worktrees/manufacturing-core`
+- Branch: `feature/mozaik-export`
+- Worktree: `/home/palm/Desktop/projects/home_builder_4-worktrees/mozaik-export`
 - Shared contract: `docs/manufacturing/ARCHITECTURE.md`
+- Dependency: completed `feature/manufacturing-core`
 
-Commit all completed work to this branch. Do not modify another worktree.
+Rebase onto the approved manufacturing-core commit first. Build on the
+canonical model and shared DXF writer when that dependency is integrated.
 
 ## Objective
 
-Build the canonical, versioned manufacturing model and the Blender extractor
-that every downstream manufacturing feature will use. This is the critical
-dependency for cut lists, nesting, panel drawings, and Mozaik interchange.
+Export a self-contained Mozaik-oriented manufacturing package using neutral,
+documentable interchange: per-panel DXF plus optimizer part data and a
+manifest. Do not claim to create native editable `.moz` projects.
 
 ## Required Research
 
-Before implementing, clone at least three relevant public cabinet,
-woodworking, CAD, or manufacturing projects into:
+Clone at least three relevant public cabinet exporters, DXF/CAM tools,
+optimizer interchange implementations, or comparable commercial-CAD bridge
+projects into:
 
 ```text
-/tmp/hb4-research/manufacturing-core/
+/tmp/hb4-research/mozaik-export/
 ```
 
-Inspect their source code for part identification, evaluated dimensions,
-materials, edge banding, array quantities, shaped panel outlines, and
-machining operations. Do not rely only on README files.
+Inspect implementation source for material mapping, part identifiers,
+operation layers, CSV/XML profiles, manifests, and validation. Public
+repositories without compatible licences may be inspected, but their code
+must be independently reimplemented.
 
-Create `docs/manufacturing/CORE_RESEARCH.md` recording repository URLs,
-exact commits, licences, useful techniques, limitations, and the selected
-approach. Public repositories without a compatible licence may be inspected
-but their code must be independently reimplemented. Copy code only from
-GPL-compatible sources and preserve attribution.
+Record URLs, exact commits, licences, techniques, limitations, and all
+verified Mozaik format evidence in
+`docs/manufacturing/MOZAIK_RESEARCH.md`. Clearly separate verified behavior
+from inference.
 
 ## Implementation
 
-Create the pure-Python domain modules described in the shared architecture:
+Implement `manufacturing/mozaik.py` with:
 
-- `manufacturing/model.py`
-- `manufacturing/geometry.py`
-- `manufacturing/serialization.py`
+- configurable material/thickness name mappings
+- one deterministic DXF per unique panel
+- optimizer-oriented CSV
+- XML only when a schema is verified from lawful public documentation or
+  user-owned sample exports
+- manifest JSON linking part IDs, quantities, material mappings, and files
+- validation report for unsupported machining, missing mappings, duplicate
+  filenames, and unsafe geometry
+- profile JSON that users can edit without changing source code
 
-Create `manufacturing/extractor.py` for Blender integration. It must:
+Use stable, documented DXF layers for outline, cut-out, drill, groove,
+pocket, annotation, and face. Keep Mozaik-specific naming separate from the
+canonical domain model.
 
-- Discover evaluated `IS_CUTPART_BP` assemblies.
-- Normalize dimensions to positive millimetres.
-- Resolve stable part and cabinet IDs.
-- Expand repeated/arrayed parts into quantities.
-- Resolve names, categories, materials, thickness, grain, and edge data.
-- Extract rectangular and shaped panel outlines.
-- Translate supported machine tokens into canonical machining operations.
-- Exclude suppressed, decorative, wall, appliance, and dimension objects.
-- Return structured validation issues for missing or unsupported metadata.
+Do not download or execute cracked, leaked, or unofficial Mozaik binaries.
+Do not reverse-engineer credentials, licensing, or copy protection. Any
+future native-project research must be clean-room work based on files the
+user is lawfully entitled to create.
 
-Register only the minimum package hooks needed by downstream modules. Do not
-implement cut-list, nesting, drawing, or Mozaik-specific output.
+Add a Blender operator and Manufacturing UI section that exports a complete
+Mozaik package directory.
 
 ## Tests And Acceptance
 
-Add pure-Python tests under `tests/manufacturing/` for:
+Test:
 
-- model validation and deterministic ordering
-- geometry normalization
-- JSON round trips and schema-version rejection
-- stable IDs
+- deterministic filenames and manifest links
+- material mapping and missing-map failures
+- CSV quoting, Unicode, and locale-independent decimals
+- verified XML shape if XML is implemented
+- DXF layer and unit requirements
+- duplicate parts and quantities
+- unsupported operation warnings
 
-Add Blender-headless tests under `tests/blender/` for representative
-rectangular, repeated, and shaped parts. Tests must skip clearly when
-Blender is unavailable and run under Blender 4.x when supplied.
-
-Acceptance requires deterministic JSON, millimetre-only internal values,
-positive normalized dimensions, preserved machining-face orientation,
-expanded quantities, and useful validation failures. Run all available
-tests and commit the implementation plus research notes.
+Acceptance requires a complete package usable for external import trials,
+with no proprietary `.moz` claim and no silent data loss. Commit
+implementation and research notes.
