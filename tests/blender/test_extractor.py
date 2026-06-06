@@ -126,20 +126,23 @@ class BlenderExtractorTests(unittest.TestCase):
         project = extract_scene()
         self.assertEqual(project.parts, ())
 
-    def test_wall_parented_cabinet_parts_are_included(self):
+    def test_wall_mounted_cabinet_parts_and_hardware_are_retained(self):
         wall = self._empty("Wall", None)
         wall["IS_WALL_BP"] = True
         self.cabinet.parent = wall
         self._part(
-            "Wall Cabinet Side",
-            (0.7, 0.35, 0.018),
-            ((0, 0), (0.7, 0), (0.7, 0.35), (0, 0.35)),
+            "Wall Mounted Shelf",
+            (0.5, 0.3, 0.018),
+            ((0, 0), (0.5, 0), (0.5, 0.3), (0, 0.3)),
         )
+        hinge = self._empty("Wall Cabinet Hinge", self.cabinet)
+        hinge["IS_HARDWARE"] = True
 
         project = extract_scene()
 
-        self.assertEqual(len(project.parts), 1)
-        self.assertEqual(project.parts[0].name, "Wall Cabinet Side")
+        self.assertEqual([part.name for part in project.parts], ["Wall Mounted Shelf"])
+        self.assertEqual([item.name for item in project.hardware], ["Wall Cabinet Hinge"])
+        self.assertEqual(project.hardware[0].cabinet_id, project.cabinets[0].id)
         self.assertEqual(project.cabinets[0].wall_name, "Wall")
 
     def test_invalid_explicit_outline_falls_back_with_issue(self):

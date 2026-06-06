@@ -169,6 +169,24 @@ def _loop_strictly_inside(
     )
 
 
+def _loops_intersect_or_contain(
+    first: Sequence[Point2D],
+    second: Sequence[Point2D],
+) -> bool:
+    if any(
+        _segments_intersect(
+            first[first_index - 1],
+            first_point,
+            second[second_index - 1],
+            second_point,
+        )
+        for first_index, first_point in enumerate(first)
+        for second_index, second_point in enumerate(second)
+    ):
+        return True
+    return point_in_loop(first[0], second) or point_in_loop(second[0], first)
+
+
 def _collinear(previous: Point2D, current: Point2D, following: Point2D) -> bool:
     cross = (
         (current.x - previous.x) * (following.y - current.y)
@@ -228,6 +246,12 @@ class Polygon2D:
         for loop in cutouts:
             if not _loop_strictly_inside(loop, outer):
                 raise ValueError("cut-out loops must lie inside the outer outline")
+        for index, loop in enumerate(cutouts):
+            if any(
+                _loops_intersect_or_contain(loop, other)
+                for other in cutouts[index + 1 :]
+            ):
+                raise ValueError("cut-out loops must not intersect or contain each other")
         object.__setattr__(self, "outer", outer)
         object.__setattr__(self, "cutouts", cutouts)
 

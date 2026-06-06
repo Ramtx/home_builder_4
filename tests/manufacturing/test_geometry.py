@@ -87,6 +87,37 @@ class GeometryTests(unittest.TestCase):
                 (((0, 2), (4, 2), (4, 4), (0, 4)),),
             )
 
+    def test_overlapping_cutouts_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must not intersect"):
+            Polygon2D(
+                ((0, 0), (20, 0), (20, 20), (0, 20)),
+                (
+                    ((2, 2), (10, 2), (10, 10), (2, 10)),
+                    ((8, 8), (16, 8), (16, 16), (8, 16)),
+                ),
+            )
+
+    def test_nested_cutouts_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must not intersect"):
+            Polygon2D(
+                ((0, 0), (20, 0), (20, 20), (0, 20)),
+                (
+                    ((2, 2), (18, 2), (18, 18), (2, 18)),
+                    ((6, 6), (10, 6), (10, 10), (6, 10)),
+                ),
+            )
+
+    def test_separate_cutouts_are_accepted(self):
+        polygon = Polygon2D(
+            ((0, 0), (20, 0), (20, 20), (0, 20)),
+            (
+                ((2, 2), (6, 2), (6, 6), (2, 6)),
+                ((14, 14), (18, 14), (18, 18), (14, 18)),
+            ),
+        )
+
+        self.assertEqual(polygon.area, 368)
+
     def test_signed_axis_normalization_preserves_orientation(self):
         normalization = AxisNormalization.from_signed_dimensions(-500, 300, -18)
 

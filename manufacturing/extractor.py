@@ -56,6 +56,8 @@ EXCLUDED_ANCESTOR_TAGS = {
     "IS_OPENING_BP",
 }
 
+EXCLUDED_OBJECT_TAGS = EXCLUDED_ANCESTOR_TAGS | {"IS_WALL_BP"}
+
 CABINET_TAGS = {
     "IS_CABINET_BP",
     "IS_CLOSET_BP",
@@ -1059,7 +1061,10 @@ def _extract_hardware(
 
 
 def _is_excluded(obj: Any) -> bool:
-    current = obj
+    if any(_tag(obj, tag) for tag in EXCLUDED_OBJECT_TAGS):
+        return True
+
+    current = obj.parent
     while current is not None:
         if any(_tag(current, tag) for tag in EXCLUDED_ANCESTOR_TAGS):
             return True
